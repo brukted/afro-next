@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:eyecandy/features/graph/models/graph_schema.dart';
 import 'package:eyecandy/features/node_editor/node_editor_canvas.dart';
 import 'package:eyecandy/features/node_editor/node_editor_models.dart';
 import 'package:eyecandy/features/node_editor/node_editor_viewport.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
@@ -171,6 +174,110 @@ void main() {
       moreOrLessEquals(64, epsilon: 1),
     );
   });
+
+  testWidgets('requests the canvas context menu with scene coordinates', (
+    WidgetTester tester,
+  ) async {
+    final viewportController = NodeEditorViewportController(
+      initialScale: 2,
+      initialTranslation: const Offset(20, 40),
+    );
+    Offset? requestedGlobalPosition;
+    Offset? requestedScenePosition;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: NodeEditorCanvas(
+              viewportController: viewportController,
+              nodes: const [],
+              links: const [],
+              selectedNodeId: null,
+              pendingPropertyId: null,
+              onSelectNode: (_) {},
+              onSetNodePosition: (_, _) {},
+              onSocketTap: (_, _) {},
+              onCancelPendingConnection: () {},
+              onRequestCanvasMenu: (globalPosition, scenePosition) async {
+                requestedGlobalPosition = globalPosition;
+                requestedScenePosition = scenePosition;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    const localPoint = Offset(300, 220);
+    await _secondaryClickAt(tester, localPoint);
+
+    expect(requestedGlobalPosition, isNotNull);
+    expect(requestedScenePosition, isNotNull);
+    expect(requestedScenePosition!.dx, moreOrLessEquals(140, epsilon: 0.01));
+    expect(requestedScenePosition!.dy, moreOrLessEquals(90, epsilon: 0.01));
+  });
+
+  testWidgets('requests the node context menu for the clicked node', (
+    WidgetTester tester,
+  ) async {
+    String? requestedNodeId;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: NodeEditorCanvas(
+              nodes: [
+                NodeEditorNodeViewModel(
+                  id: 'node-ctx',
+                  title: 'Context Node',
+                  position: Vector2(80, 80),
+                  icon: Icons.account_tree_outlined,
+                  accentColor: const Color(0xFF7D67FF),
+                  sockets: const [],
+                ),
+              ],
+              links: const [],
+              selectedNodeId: null,
+              pendingPropertyId: null,
+              onSelectNode: (_) {},
+              onSetNodePosition: (_, _) {},
+              onSocketTap: (_, _) {},
+              onCancelPendingConnection: () {},
+              onRequestNodeMenu: (node, _) async {
+                requestedNodeId = node.id;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await _secondaryClick(tester, find.byIcon(Icons.drag_indicator));
+
+    expect(requestedNodeId, 'node-ctx');
+  });
+
+  test('focusSceneRect centers the target rect', () {
+    final controller = NodeEditorViewportController();
+    const viewportSize = Size(800, 600);
+    const rect = Rect.fromLTWH(100, 120, 240, 120);
+
+    controller.focusSceneRect(
+      sceneRect: rect,
+      viewportSize: viewportSize,
+    );
+
+    final center = controller.sceneToScreen(rect.center);
+    expect(center.dx, moreOrLessEquals(viewportSize.width / 2, epsilon: 0.01));
+    expect(center.dy, moreOrLessEquals(viewportSize.height / 2, epsilon: 0.01));
+    expect(controller.scale, greaterThan(1));
+  });
 }
 
 class _NodeEditorDragHarness extends StatefulWidget {
@@ -220,4 +327,18 @@ class _NodeEditorDragHarnessState extends State<_NodeEditorDragHarness> {
       onCancelPendingConnection: () {},
     );
   }
+}
+
+Future<void> _secondaryClick(WidgetTester tester, Finder finder) async {
+  await _secondaryClickAt(tester, tester.getCenter(finder));
+}
+
+Future<void> _secondaryClickAt(WidgetTester tester, Offset point) async {
+  final gesture = await tester.startGesture(
+    point,
+    buttons: kSecondaryMouseButton,
+    kind: PointerDeviceKind.mouse,
+  );
+  await gesture.up();
+  await tester.pumpAndSettle();
 }

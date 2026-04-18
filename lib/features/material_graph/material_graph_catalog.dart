@@ -11,6 +11,54 @@ class MaterialGraphCatalog {
 
   final IdFactory _idFactory;
 
+  static const List<EnumChoiceOption> _mixBlendModes = [
+    EnumChoiceOption(id: 'add_sub', label: 'Add Sub', value: 0),
+    EnumChoiceOption(id: 'copy', label: 'Copy', value: 1),
+    EnumChoiceOption(id: 'multiply', label: 'Multiply', value: 2),
+    EnumChoiceOption(id: 'screen', label: 'Screen', value: 3),
+    EnumChoiceOption(id: 'overlay', label: 'Overlay', value: 4),
+    EnumChoiceOption(id: 'hard_light', label: 'Hard Light', value: 5),
+    EnumChoiceOption(id: 'soft_light', label: 'Soft Light', value: 6),
+    EnumChoiceOption(id: 'color_dodge', label: 'Color Dodge', value: 7),
+    EnumChoiceOption(id: 'linear_dodge', label: 'Linear Dodge', value: 8),
+    EnumChoiceOption(id: 'color_burn', label: 'Color Burn', value: 9),
+    EnumChoiceOption(id: 'linear_burn', label: 'Linear Burn', value: 10),
+    EnumChoiceOption(id: 'vivid_light', label: 'Vivid Light', value: 11),
+    EnumChoiceOption(id: 'divide', label: 'Divide', value: 12),
+    EnumChoiceOption(id: 'subtract', label: 'Subtract', value: 13),
+    EnumChoiceOption(id: 'difference', label: 'Difference', value: 14),
+    EnumChoiceOption(id: 'darken', label: 'Darken', value: 15),
+    EnumChoiceOption(id: 'lighten', label: 'Lighten', value: 16),
+    EnumChoiceOption(id: 'hue', label: 'Hue', value: 17),
+    EnumChoiceOption(id: 'saturation', label: 'Saturation', value: 18),
+    EnumChoiceOption(id: 'color', label: 'Color', value: 19),
+    EnumChoiceOption(id: 'luminosity', label: 'Luminosity', value: 20),
+    EnumChoiceOption(id: 'linear_light', label: 'Linear Light', value: 21),
+    EnumChoiceOption(id: 'pin_light', label: 'Pin Light', value: 22),
+    EnumChoiceOption(id: 'hard_mix', label: 'Hard Mix', value: 23),
+    EnumChoiceOption(id: 'exclusion', label: 'Exclusion', value: 24),
+  ];
+
+  static const List<EnumChoiceOption> _mixAlphaModes = [
+    EnumChoiceOption(id: 'background', label: 'Background', value: 0),
+    EnumChoiceOption(id: 'foreground', label: 'Foreground', value: 1),
+    EnumChoiceOption(id: 'min', label: 'Min', value: 2),
+    EnumChoiceOption(id: 'max', label: 'Max', value: 3),
+    EnumChoiceOption(id: 'average', label: 'Average', value: 4),
+    EnumChoiceOption(id: 'add', label: 'Add', value: 5),
+  ];
+
+  static const List<EnumChoiceOption> _channelSelectOptions = [
+    EnumChoiceOption(id: 'red_1', label: 'Red 1', value: 0),
+    EnumChoiceOption(id: 'green_1', label: 'Green 1', value: 1),
+    EnumChoiceOption(id: 'blue_1', label: 'Blue 1', value: 2),
+    EnumChoiceOption(id: 'alpha_1', label: 'Alpha 1', value: 3),
+    EnumChoiceOption(id: 'red_2', label: 'Red 2', value: 4),
+    EnumChoiceOption(id: 'green_2', label: 'Green 2', value: 5),
+    EnumChoiceOption(id: 'blue_2', label: 'Blue 2', value: 6),
+    EnumChoiceOption(id: 'alpha_2', label: 'Alpha 2', value: 7),
+  ];
+
   late final List<MaterialNodeDefinition> _definitions =
       <MaterialNodeDefinition>[
         MaterialNodeDefinition(
@@ -22,15 +70,22 @@ class MaterialGraphCatalog {
               GraphPropertyDefinition(
                 key: 'color',
                 label: 'Color',
-                valueType: GraphValueType.color,
-                defaultValue: _color('#3DD6B0'),
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _white(),
               ),
               GraphPropertyDefinition(
-                key: 'output',
+                key: '_output',
                 label: 'Output',
-                valueType: GraphValueType.color,
-                defaultValue: _color('#000000'),
-                socketDirection: GraphSocketDirection.output,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.output,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _black(),
               ),
             ],
           ),
@@ -40,69 +95,82 @@ class MaterialGraphCatalog {
         MaterialNodeDefinition(
           schema: GraphNodeSchema(
             id: 'mix_node',
-            label: 'Mix',
+            label: 'Mix Node',
             description: 'Blends two inputs together using a configurable mode.',
-            properties: const [
+            properties: [
               GraphPropertyDefinition(
-                key: 'foreground',
+                key: 'Foreground',
                 label: 'Foreground',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.input,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _white(),
               ),
               GraphPropertyDefinition(
-                key: 'background',
+                key: 'Background',
                 label: 'Background',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.input,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _white(),
               ),
               GraphPropertyDefinition(
-                key: 'mask',
+                key: 'Mask',
                 label: 'Mask',
-                valueType: GraphValueType.scalar,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: true,
+                valueType: GraphValueType.float,
+                valueUnit: GraphValueUnit.color,
                 defaultValue: 0.5,
-                min: 0,
-                max: 1,
               ),
               GraphPropertyDefinition(
                 key: 'blendMode',
                 label: 'Blend Mode',
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
                 valueType: GraphValueType.enumChoice,
-                defaultValue: 1,
-                enumOptions: [
-                  EnumChoiceOption(id: 'copy', label: 'Copy', value: 1),
-                  EnumChoiceOption(id: 'multiply', label: 'Multiply', value: 2),
-                  EnumChoiceOption(id: 'screen', label: 'Screen', value: 3),
-                  EnumChoiceOption(id: 'overlay', label: 'Overlay', value: 4),
-                  EnumChoiceOption(id: 'softLight', label: 'Soft Light', value: 6),
-                ],
+                valueUnit: GraphValueUnit.none,
+                defaultValue: 0,
+                enumOptions: _mixBlendModes,
               ),
               GraphPropertyDefinition(
                 key: 'alphaMode',
                 label: 'Alpha Mode',
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
                 valueType: GraphValueType.enumChoice,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 0,
-                enumOptions: [
-                  EnumChoiceOption(id: 'background', label: 'Background', value: 0),
-                  EnumChoiceOption(id: 'foreground', label: 'Foreground', value: 1),
-                  EnumChoiceOption(id: 'average', label: 'Average', value: 4),
-                ],
+                enumOptions: _mixAlphaModes,
               ),
               GraphPropertyDefinition(
                 key: 'alpha',
                 label: 'Alpha',
-                valueType: GraphValueType.scalar,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
+                valueType: GraphValueType.float,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 1.0,
                 min: 0,
                 max: 1,
               ),
               GraphPropertyDefinition(
-                key: 'output',
+                key: '_output',
                 label: 'Output',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.output,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.output,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _black(),
               ),
             ],
           ),
@@ -114,91 +182,80 @@ class MaterialGraphCatalog {
             id: 'channel_select_node',
             label: 'Channel Select',
             description: 'Rebuilds RGBA channels from two input colors.',
-            properties: const [
+            properties: [
               GraphPropertyDefinition(
                 key: 'input1',
                 label: 'Input 1',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.input,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _white(),
               ),
               GraphPropertyDefinition(
                 key: 'input2',
                 label: 'Input 2',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.input,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _white(),
               ),
               GraphPropertyDefinition(
-                key: 'channelRed',
+                key: 'channel_red',
                 label: 'Red Channel',
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
                 valueType: GraphValueType.enumChoice,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 0,
-                enumOptions: [
-                  EnumChoiceOption(id: 'r1', label: 'Red 1', value: 0),
-                  EnumChoiceOption(id: 'g1', label: 'Green 1', value: 1),
-                  EnumChoiceOption(id: 'b1', label: 'Blue 1', value: 2),
-                  EnumChoiceOption(id: 'a1', label: 'Alpha 1', value: 3),
-                  EnumChoiceOption(id: 'r2', label: 'Red 2', value: 4),
-                  EnumChoiceOption(id: 'g2', label: 'Green 2', value: 5),
-                  EnumChoiceOption(id: 'b2', label: 'Blue 2', value: 6),
-                  EnumChoiceOption(id: 'a2', label: 'Alpha 2', value: 7),
-                ],
+                enumOptions: _channelSelectOptions,
               ),
               GraphPropertyDefinition(
-                key: 'channelGreen',
+                key: 'channel_green',
                 label: 'Green Channel',
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
                 valueType: GraphValueType.enumChoice,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 1,
-                enumOptions: [
-                  EnumChoiceOption(id: 'r1', label: 'Red 1', value: 0),
-                  EnumChoiceOption(id: 'g1', label: 'Green 1', value: 1),
-                  EnumChoiceOption(id: 'b1', label: 'Blue 1', value: 2),
-                  EnumChoiceOption(id: 'a1', label: 'Alpha 1', value: 3),
-                  EnumChoiceOption(id: 'r2', label: 'Red 2', value: 4),
-                  EnumChoiceOption(id: 'g2', label: 'Green 2', value: 5),
-                  EnumChoiceOption(id: 'b2', label: 'Blue 2', value: 6),
-                  EnumChoiceOption(id: 'a2', label: 'Alpha 2', value: 7),
-                ],
+                enumOptions: _channelSelectOptions,
               ),
               GraphPropertyDefinition(
-                key: 'channelBlue',
+                key: 'channel_blue',
                 label: 'Blue Channel',
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
                 valueType: GraphValueType.enumChoice,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 2,
-                enumOptions: [
-                  EnumChoiceOption(id: 'r1', label: 'Red 1', value: 0),
-                  EnumChoiceOption(id: 'g1', label: 'Green 1', value: 1),
-                  EnumChoiceOption(id: 'b1', label: 'Blue 1', value: 2),
-                  EnumChoiceOption(id: 'a1', label: 'Alpha 1', value: 3),
-                  EnumChoiceOption(id: 'r2', label: 'Red 2', value: 4),
-                  EnumChoiceOption(id: 'g2', label: 'Green 2', value: 5),
-                  EnumChoiceOption(id: 'b2', label: 'Blue 2', value: 6),
-                  EnumChoiceOption(id: 'a2', label: 'Alpha 2', value: 7),
-                ],
+                enumOptions: _channelSelectOptions,
               ),
               GraphPropertyDefinition(
-                key: 'channelAlpha',
+                key: 'channel_alpha',
                 label: 'Alpha Channel',
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
                 valueType: GraphValueType.enumChoice,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 3,
-                enumOptions: [
-                  EnumChoiceOption(id: 'r1', label: 'Red 1', value: 0),
-                  EnumChoiceOption(id: 'g1', label: 'Green 1', value: 1),
-                  EnumChoiceOption(id: 'b1', label: 'Blue 1', value: 2),
-                  EnumChoiceOption(id: 'a1', label: 'Alpha 1', value: 3),
-                  EnumChoiceOption(id: 'r2', label: 'Red 2', value: 4),
-                  EnumChoiceOption(id: 'g2', label: 'Green 2', value: 5),
-                  EnumChoiceOption(id: 'b2', label: 'Blue 2', value: 6),
-                  EnumChoiceOption(id: 'a2', label: 'Alpha 2', value: 7),
-                ],
+                enumOptions: _channelSelectOptions,
               ),
               GraphPropertyDefinition(
-                key: 'output',
+                key: '_output',
                 label: 'Output',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.output,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.output,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _black(),
               ),
             ],
           ),
@@ -208,13 +265,17 @@ class MaterialGraphCatalog {
         MaterialNodeDefinition(
           schema: GraphNodeSchema(
             id: 'circle_node',
-            label: 'Circle',
+            label: 'Circle Node',
             description: 'Generates a circular shape mask.',
-            properties: const [
+            properties: [
               GraphPropertyDefinition(
                 key: 'radius',
                 label: 'Radius',
-                valueType: GraphValueType.scalar,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
+                valueType: GraphValueType.float,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 0.5,
                 min: 0,
                 max: 1,
@@ -222,7 +283,11 @@ class MaterialGraphCatalog {
               GraphPropertyDefinition(
                 key: 'outline',
                 label: 'Outline',
-                valueType: GraphValueType.scalar,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
+                valueType: GraphValueType.float,
+                valueUnit: GraphValueUnit.none,
                 defaultValue: 0.0,
                 min: 0,
                 max: 1,
@@ -230,25 +295,36 @@ class MaterialGraphCatalog {
               GraphPropertyDefinition(
                 key: 'width',
                 label: 'Width',
-                valueType: GraphValueType.scalar,
-                defaultValue: 0.5,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
+                valueType: GraphValueType.float,
+                valueUnit: GraphValueUnit.none,
+                defaultValue: 0.1,
                 min: 0,
                 max: 1,
               ),
               GraphPropertyDefinition(
                 key: 'height',
                 label: 'Height',
-                valueType: GraphValueType.scalar,
-                defaultValue: 0.5,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.input,
+                socket: false,
+                valueType: GraphValueType.float,
+                valueUnit: GraphValueUnit.none,
+                defaultValue: 0.1,
                 min: 0,
                 max: 1,
               ),
               GraphPropertyDefinition(
-                key: 'output',
+                key: '_output',
                 label: 'Output',
-                valueType: GraphValueType.color,
-                defaultValue: 0,
-                socketDirection: GraphSocketDirection.output,
+                description: 'Empty desc',
+                propertyType: GraphPropertyType.output,
+                socket: true,
+                valueType: GraphValueType.float4,
+                valueUnit: GraphValueUnit.color,
+                defaultValue: _black(),
               ),
             ],
           ),
@@ -305,25 +381,25 @@ class MaterialGraphCatalog {
     final links = <GraphLinkDocument>[
       _connect(
         fromNode: solidColor,
-        fromKey: 'output',
+        fromKey: '_output',
         toNode: mix,
-        toKey: 'foreground',
+        toKey: 'Foreground',
       ),
       _connect(
         fromNode: circle,
-        fromKey: 'output',
+        fromKey: '_output',
         toNode: mix,
-        toKey: 'background',
+        toKey: 'Background',
       ),
       _connect(
         fromNode: mix,
-        fromKey: 'output',
+        fromKey: '_output',
         toNode: channelSelect,
         toKey: 'input1',
       ),
       _connect(
         fromNode: solidColor,
-        fromKey: 'output',
+        fromKey: '_output',
         toNode: channelSelect,
         toKey: 'input2',
       ),
@@ -354,16 +430,30 @@ class MaterialGraphCatalog {
 
   GraphValueData _wrapDefaultValue(GraphPropertyDefinition definition) {
     switch (definition.valueType) {
-      case GraphValueType.scalar:
-        return GraphValueData.scalar((definition.defaultValue as num).toDouble());
+      case GraphValueType.integer:
+        return GraphValueData.integer((definition.defaultValue as num).toInt());
+      case GraphValueType.integer2:
+        return GraphValueData.integer2(asIntVector(definition.defaultValue));
+      case GraphValueType.integer3:
+        return GraphValueData.integer3(asIntVector(definition.defaultValue));
+      case GraphValueType.integer4:
+        return GraphValueData.integer4(asIntVector(definition.defaultValue));
+      case GraphValueType.float:
+        return GraphValueData.float((definition.defaultValue as num).toDouble());
+      case GraphValueType.float2:
+        return GraphValueData.float2(asVector2(definition.defaultValue));
+      case GraphValueType.float3:
+        return GraphValueData.float3(asVector3(definition.defaultValue));
+      case GraphValueType.float4:
+        return GraphValueData.float4(asVector4(definition.defaultValue));
+      case GraphValueType.stringValue:
+        return GraphValueData.stringValue(definition.defaultValue as String);
+      case GraphValueType.boolean:
+        return GraphValueData.boolean(definition.defaultValue as bool);
       case GraphValueType.enumChoice:
         return GraphValueData.enumChoice(definition.defaultValue as int);
-      case GraphValueType.color:
-        final color = definition.defaultValue;
-        if (color is vmath.Vector4) {
-          return GraphValueData.color(color.clone());
-        }
-        return GraphValueData.color(vmath.Vector4.zero());
+      case GraphValueType.colorBezierCurve:
+        return GraphValueData.colorCurve(asColorCurve(definition.defaultValue));
     }
   }
 
@@ -373,4 +463,8 @@ class MaterialGraphCatalog {
     result.w = 1;
     return result;
   }
+
+  static vmath.Vector4 _white() => vmath.Vector4(1, 1, 1, 1);
+
+  static vmath.Vector4 _black() => vmath.Vector4.zero();
 }

@@ -33,12 +33,28 @@ class Vector4JsonConverter extends JsonConverter<Vector4, List<double>> {
   List<double> toJson(Vector4 object) => [object.x, object.y, object.z, object.w];
 }
 
-extension on List<double> {
+class Vector3JsonConverter extends JsonConverter<Vector3, List<double>> {
+  const Vector3JsonConverter();
+
+  @override
+  Vector3 fromJson(List<double> json) {
+    return Vector3(
+      json.elementAtOrNull(0) ?? 0,
+      json.elementAtOrNull(1) ?? 0,
+      json.elementAtOrNull(2) ?? 0,
+    );
+  }
+
+  @override
+  List<double> toJson(Vector3 object) => [object.x, object.y, object.z];
+}
+
+extension on List<num> {
   double? elementAtOrNull(int index) {
     if (index < 0 || index >= length) {
       return null;
     }
 
-    return this[index];
+    return this[index].toDouble();
   }
 }

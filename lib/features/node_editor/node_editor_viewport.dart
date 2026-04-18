@@ -85,6 +85,50 @@ class NodeEditorViewportController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void centerScenePoint({
+    required Offset scenePoint,
+    required Size viewportSize,
+    double? scale,
+  }) {
+    final nextScale = (scale ?? _viewport.scale).clamp(minScale, maxScale).toDouble();
+    final nextTranslation = Offset(
+      (viewportSize.width / 2) - (scenePoint.dx * nextScale),
+      (viewportSize.height / 2) - (scenePoint.dy * nextScale),
+    );
+    jumpTo(scale: nextScale, translation: nextTranslation);
+  }
+
+  void focusSceneRect({
+    required Rect sceneRect,
+    required Size viewportSize,
+    double padding = 36,
+  }) {
+    if (sceneRect.isEmpty) {
+      centerScenePoint(
+        scenePoint: sceneRect.center,
+        viewportSize: viewportSize,
+      );
+      return;
+    }
+
+    final safeWidth = (viewportSize.width - (padding * 2)).clamp(1.0, double.infinity);
+    final safeHeight = (viewportSize.height - (padding * 2)).clamp(1.0, double.infinity);
+    final targetScale = sceneRect.width <= 0 || sceneRect.height <= 0
+        ? _viewport.scale
+        : (safeWidth / sceneRect.width)
+            .clamp(
+              minScale,
+              (safeHeight / sceneRect.height).clamp(minScale, maxScale).toDouble(),
+            )
+            .toDouble();
+
+    centerScenePoint(
+      scenePoint: sceneRect.center,
+      viewportSize: viewportSize,
+      scale: targetScale,
+    );
+  }
+
   void panBy(Offset screenDelta) {
     if (screenDelta == Offset.zero) {
       return;

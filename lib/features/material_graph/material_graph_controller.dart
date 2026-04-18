@@ -12,6 +12,7 @@ import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import 'material_graph_catalog.dart';
+import 'material_graph_migration.dart';
 import 'material_node_definition.dart';
 
 class PendingSocketConnection {
@@ -82,6 +83,14 @@ class MaterialGraphController extends ChangeNotifier {
     return graph.nodes.firstWhereOrNull((node) => node.id == _selectedNodeId);
   }
 
+  GraphNodeDocument? nodeById(String nodeId) {
+    if (!hasGraph) {
+      return null;
+    }
+
+    return graph.nodes.firstWhereOrNull((node) => node.id == nodeId);
+  }
+
   Future<void> initialize() async {
     if (_initialized) {
       return;
@@ -96,8 +105,9 @@ class MaterialGraphController extends ChangeNotifier {
     required GraphDocument graph,
     required ValueChanged<GraphDocument> onChanged,
   }) {
-    final graphChanged = _graph?.id != graph.id;
-    _graph = graph;
+    final normalizedGraph = MaterialGraphMigration.normalize(graph);
+    final graphChanged = _graph?.id != normalizedGraph.id;
+    _graph = normalizedGraph;
     _onGraphChanged = onChanged;
     if (graphChanged) {
       _selectedNodeId = null;
@@ -105,7 +115,10 @@ class MaterialGraphController extends ChangeNotifier {
       _previews.clear();
       _dirtyNodes
         ..clear()
-        ..addAll(graph.nodes.map((node) => node.id));
+        ..addAll(normalizedGraph.nodes.map((node) => node.id));
+    }
+    if (!identical(normalizedGraph, graph)) {
+      onChanged(normalizedGraph);
     }
     _refreshPreviews();
     notifyListeners();
@@ -131,6 +144,19 @@ class MaterialGraphController extends ChangeNotifier {
   }
 
   void addNode(String definitionId) {
+    final matchingNodeCount = hasGraph
+        ? graph.nodes.where((node) => node.definitionId == definitionId).length
+        : 0;
+    addNodeAt(
+      definitionId,
+      Vector2(
+        760 + (matchingNodeCount * 42),
+        560 + (matchingNodeCount * 34),
+      ),
+    );
+  }
+
+  void addNodeAt(String definitionId, Vector2 position) {
     if (!hasGraph) {
       return;
     }
@@ -141,16 +167,105 @@ class MaterialGraphController extends ChangeNotifier {
 
     final node = _catalog.instantiateNode(
       definitionId: definitionId,
-      position: Vector2(
-        760 + (matchingNodeCount * 42),
-        560 + (matchingNodeCount * 34),
-      ),
+      position: position,
       sequence: matchingNodeCount + 1,
     );
 
     _selectedNodeId = node.id;
     _dirtyNodes.add(node.id);
     _commitGraph(graph.copyWith(nodes: [...graph.nodes, node]));
+  }
+
+  void duplicateNode(String nodeId) {
+    final source = nodeById(nodeId);
+    if (source == null) {
+      return;
+    }
+
+    final duplicatedNode = GraphNodeDocument(
+      id: _idFactory.next(),
+      definitionId: source.definitionId,
+      name: _nextDuplicateName(source.name),
+      position: source.position + Vector2(40, 32),
+      properties: source.properties
+          .map(
+            (property) => GraphNodePropertyData(
+              id: _idFactory.next(),
+              definitionKey: property.definitionKey,
+              value: property.value.deepCopy(),
+            ),
+          )
+          .toList(growable: false),
+    );
+
+    _selectedNodeId = duplicatedNode.id;
+    _dirtyNodes.add(duplicatedNode.id);
+    _commitGraph(graph.copyWith(nodes: [...graph.nodes, duplicatedNode]));
+  }
+
+  void deleteNode(String nodeId) {
+    final node = nodeById(nodeId);
+    if (node == null) {
+      return;
+    }
+
+    final linksToRemove = graph.links
+        .where((link) => link.fromNodeId == nodeId || link.toNodeId == nodeId)
+        .toList(growable: false);
+    for (final link in linksToRemove.where((entry) => entry.fromNodeId == nodeId)) {
+      _markDirty(link.toNodeId);
+    }
+
+    if (_pendingConnection?.nodeId == nodeId) {
+      _pendingConnection = null;
+    }
+    if (_selectedNodeId == nodeId) {
+      _selectedNodeId = null;
+    }
+    _previews.remove(nodeId);
+    _dirtyNodes.remove(nodeId);
+
+    _commitGraph(
+      graph.copyWith(
+        nodes: graph.nodes
+            .where((entry) => entry.id != nodeId)
+            .toList(growable: false),
+        links: graph.links
+            .where((link) => link.fromNodeId != nodeId && link.toNodeId != nodeId)
+            .toList(growable: false),
+      ),
+    );
+  }
+
+  void disconnectNode(String nodeId) {
+    final node = nodeById(nodeId);
+    if (node == null) {
+      return;
+    }
+
+    final linksToRemove = graph.links
+        .where((link) => link.fromNodeId == nodeId || link.toNodeId == nodeId)
+        .toList(growable: false);
+    if (linksToRemove.isEmpty) {
+      return;
+    }
+
+    _markDirty(nodeId);
+    for (final link in linksToRemove.where((entry) => entry.fromNodeId == nodeId)) {
+      _markDirty(link.toNodeId);
+    }
+
+    if (_pendingConnection?.nodeId == nodeId) {
+      _pendingConnection = null;
+    }
+
+    _commitGraph(
+      graph.copyWith(
+        links: graph.links
+            .where((link) => link.fromNodeId != nodeId && link.toNodeId != nodeId)
+            .toList(growable: false),
+      ),
+    );
   }
 
   void setNodePosition(String nodeId, Vector2 position) {
@@ -263,15 +378,15 @@ class MaterialGraphController extends ChangeNotifier {
     );
   }
 
-  void updateScalarProperty({
+  void updateFloatProperty({
     required String nodeId,
     required String propertyId,
     required double value,
   }) {
-    _updatePropertyValue(
+    updatePropertyValue(
       nodeId: nodeId,
       propertyId: propertyId,
-      value: GraphValueData.scalar(value),
+      value: GraphValueData.float(value),
     );
   }
 
@@ -280,7 +395,7 @@ class MaterialGraphController extends ChangeNotifier {
     required String propertyId,
     required int value,
   }) {
-    _updatePropertyValue(
+    updatePropertyValue(
       nodeId: nodeId,
       propertyId: propertyId,
       value: GraphValueData.enumChoice(value),
@@ -296,11 +411,11 @@ class MaterialGraphController extends ChangeNotifier {
     double? alpha,
   }) {
     final node = graph.nodes.firstWhere((entry) => entry.id == nodeId);
-    final current = node.propertyById(propertyId)?.value.colorValue ?? Vector4.zero();
-    _updatePropertyValue(
+    final current = node.propertyById(propertyId)?.value.asFloat4() ?? Vector4.zero();
+    updatePropertyValue(
       nodeId: nodeId,
       propertyId: propertyId,
-      value: GraphValueData.color(
+      value: GraphValueData.float4(
         Vector4ColorAdapter.withChannel(
           current,
           red: red,
@@ -310,6 +425,14 @@ class MaterialGraphController extends ChangeNotifier {
         ),
       ),
     );
+  }
+
+  void updatePropertyValue({
+    required String nodeId,
+    required String propertyId,
+    required GraphValueData value,
+  }) {
+    _updatePropertyValue(nodeId: nodeId, propertyId: propertyId, value: value);
   }
 
   MaterialNodeDefinition definitionForNode(GraphNodeDocument node) {
@@ -415,6 +538,19 @@ class MaterialGraphController extends ChangeNotifier {
     _dirtyNodes.add(nodeId);
     for (final link in graph.links.where((entry) => entry.fromNodeId == nodeId)) {
       _markDirtyRecursive(link.toNodeId, visited);
+    }
+  }
+
+  String _nextDuplicateName(String baseName) {
+    final takenNames = graph.nodes.map((node) => node.name).toSet();
+    var index = 1;
+    while (true) {
+      final suffix = index == 1 ? ' Copy' : ' Copy $index';
+      final candidate = '$baseName$suffix';
+      if (!takenNames.contains(candidate)) {
+        return candidate;
+      }
+      index += 1;
     }
   }
 

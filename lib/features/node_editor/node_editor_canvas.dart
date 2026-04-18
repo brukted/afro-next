@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -10,14 +11,12 @@ import '../graph/models/graph_schema.dart';
 import 'node_editor_models.dart';
 import 'node_editor_viewport.dart';
 
-const double _nodeWidth = 220;
-const double _headerHeight = 34;
-const double _rowHeight = 26;
-const double _socketInset = 11;
-const double _bodyTopSpacing = 10;
-const double _bodyBottomSpacing = 8;
-const EdgeInsets _nodeBodyPadding = EdgeInsets.fromLTRB(10, 10, 10, 8);
 const Color _canvasColor = Color(0xFF090B11);
+
+typedef NodeEditorCanvasMenuHandler =
+    Future<void> Function(Offset globalPosition, Offset scenePosition);
+typedef NodeEditorNodeMenuHandler =
+    Future<void> Function(NodeEditorNodeViewModel node, Offset globalPosition);
 
 class NodeEditorCanvas extends StatefulWidget {
   const NodeEditorCanvas({
@@ -32,6 +31,8 @@ class NodeEditorCanvas extends StatefulWidget {
     required this.onCancelPendingConnection,
     this.viewportController,
     this.buildNodeBody,
+    this.onRequestCanvasMenu,
+    this.onRequestNodeMenu,
   });
 
   final List<NodeEditorNodeViewModel> nodes;
@@ -44,6 +45,8 @@ class NodeEditorCanvas extends StatefulWidget {
   final VoidCallback onCancelPendingConnection;
   final NodeEditorViewportController? viewportController;
   final NodeEditorBodyBuilder? buildNodeBody;
+  final NodeEditorCanvasMenuHandler? onRequestCanvasMenu;
+  final NodeEditorNodeMenuHandler? onRequestNodeMenu;
 
   @override
   State<NodeEditorCanvas> createState() => _NodeEditorCanvasState();
@@ -109,6 +112,12 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
                             widget.onSelectNode(null);
                             widget.onCancelPendingConnection();
                           },
+                          onSecondaryTapDown: (details) {
+                            _requestCanvasMenu(details.globalPosition);
+                          },
+                          onLongPressStart: (details) {
+                            _requestCanvasMenu(details.globalPosition);
+                          },
                           onPanUpdate: (details) {
                             _viewportController.panBy(details.delta);
                           },
@@ -134,7 +143,7 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
                             scale: viewport.scale,
                             alignment: Alignment.topLeft,
                             child: SizedBox(
-                              width: _nodeWidth,
+                              width: nodeEditorNodeWidth,
                               child: _NodeCard(
                                 node: node,
                                 isSelected: widget.selectedNodeId == node.id,
@@ -159,6 +168,10 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
                                 },
                                 onSocketTap: (propertyId) {
                                   widget.onSocketTap(node.id, propertyId);
+                                },
+                                onRequestContextMenu: (globalPosition) {
+                                  widget.onSelectNode(node.id);
+                                  _requestNodeMenu(node, globalPosition);
                                 },
                               ),
                             ),
@@ -185,16 +198,16 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
         final socket = entry.$2;
         final y =
             node.position.y +
-            _headerHeight +
-            _bodyTopSpacing +
+            nodeEditorHeaderHeight +
+            nodeEditorBodyTopSpacing +
             node.bodyHeight +
-            _bodyBottomSpacing +
-            (index * _rowHeight) +
-            (_rowHeight / 2);
+            nodeEditorBodyBottomSpacing +
+            (index * nodeEditorRowHeight) +
+            (nodeEditorRowHeight / 2);
         final x = node.position.x +
             (socket.direction == GraphSocketDirection.input
-                ? _socketInset
-                : _nodeWidth - _socketInset);
+                ? nodeEditorSocketInset
+                : nodeEditorNodeWidth - nodeEditorSocketInset);
         anchors[socket.id] = Offset(x, y);
       }
     }
@@ -241,6 +254,29 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
 
     final localPosition = renderObject.globalToLocal(globalPosition);
     return _viewportController.screenToScene(localPosition);
+  }
+
+  void _requestCanvasMenu(Offset globalPosition) {
+    final handler = widget.onRequestCanvasMenu;
+    if (handler == null) {
+      return;
+    }
+
+    unawaited(
+      handler(
+        globalPosition,
+        _scenePositionForGlobal(globalPosition),
+      ),
+    );
+  }
+
+  void _requestNodeMenu(NodeEditorNodeViewModel node, Offset globalPosition) {
+    final handler = widget.onRequestNodeMenu;
+    if (handler == null) {
+      return;
+    }
+
+    unawaited(handler(node, globalPosition));
   }
 
   void _handleTrackpadPanZoom(PointerPanZoomUpdateEvent event) {
@@ -305,6 +341,7 @@ class _NodeCard extends StatelessWidget {
     required this.onDragEnd,
     required this.onSocketTap,
     required this.bodyBuilder,
+    required this.onRequestContextMenu,
   });
 
   final NodeEditorNodeViewModel node;
@@ -316,123 +353,137 @@ class _NodeCard extends StatelessWidget {
   final VoidCallback onDragEnd;
   final ValueChanged<String> onSocketTap;
   final NodeEditorBodyBuilder? bodyBuilder;
+  final ValueChanged<Offset> onRequestContextMenu;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xFF141720),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isSelected
-              ? node.accentColor
-              : theme.colorScheme.outlineVariant.withValues(alpha: 0.38),
-          width: isSelected ? 1.5 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.22),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onSelect,
+      onSecondaryTapDown: (details) {
+        onSelect();
+        onRequestContextMenu(details.globalPosition);
+      },
+      onLongPressStart: (details) {
+        onSelect();
+        onRequestContextMenu(details.globalPosition);
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF141720),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? node.accentColor
+                : theme.colorScheme.outlineVariant.withValues(alpha: 0.34),
+            width: isSelected ? 1.4 : 1,
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: onSelect,
-            onPanStart: (details) => onDragStart(details.globalPosition),
-            onPanUpdate: (details) => onDragUpdate(details.globalPosition),
-            onPanEnd: (_) => onDragEnd(),
-            onPanCancel: onDragEnd,
-            child: Container(
-              height: _headerHeight,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                color: node.accentColor.withValues(alpha: 0.14),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(13)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: onSelect,
+              onPanStart: (details) => onDragStart(details.globalPosition),
+              onPanUpdate: (details) => onDragUpdate(details.globalPosition),
+              onPanEnd: (_) => onDragEnd(),
+              onPanCancel: onDragEnd,
+              child: Container(
+                height: nodeEditorHeaderHeight,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: node.accentColor.withValues(alpha: 0.14),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(node.icon, size: 14, color: node.accentColor),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        node.title,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.drag_indicator,
+                      size: 14,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                children: [
-                  Icon(node.icon, size: 15, color: node.accentColor),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      node.title,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+            ),
+            Padding(
+              padding: nodeEditorBodyPadding,
+              child: SizedBox(
+                height: node.bodyHeight,
+                width: double.infinity,
+                child:
+                    bodyBuilder?.call(context, node) ?? _DefaultNodeBody(node: node),
+              ),
+            ),
+            ...node.sockets.map((socket) {
+              return Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    onSelect();
+                    onSocketTap(socket.id);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: SizedBox(
+                      height: nodeEditorRowHeight,
+                      child: Row(
+                        children: [
+                          if (socket.direction == GraphSocketDirection.input)
+                            _SocketDot(
+                              isActive: pendingPropertyId == socket.id,
+                              isConnected: socket.isConnected,
+                              color: node.accentColor,
+                            )
+                          else
+                            const SizedBox(width: 10),
+                          if (socket.direction == GraphSocketDirection.input)
+                            const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              socket.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                          if (socket.direction == GraphSocketDirection.output) ...[
+                            const SizedBox(width: 6),
+                            _SocketDot(
+                              isActive: pendingPropertyId == socket.id,
+                              isConnected: socket.isConnected,
+                              color: node.accentColor,
+                            ),
+                          ] else
+                            const SizedBox(width: 10),
+                        ],
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.drag_indicator,
-                    size: 15,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: _nodeBodyPadding,
-            child: SizedBox(
-              height: node.bodyHeight,
-              width: double.infinity,
-              child: bodyBuilder?.call(context, node) ?? _DefaultNodeBody(node: node),
-            ),
-          ),
-          ...node.sockets.map((socket) {
-            return Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: () {
-                  onSelect();
-                  onSocketTap(socket.id);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: SizedBox(
-                    height: _rowHeight,
-                    child: Row(
-                      children: [
-                        if (socket.direction == GraphSocketDirection.input)
-                          _SocketDot(
-                            isActive: pendingPropertyId == socket.id,
-                            isConnected: socket.isConnected,
-                            color: node.accentColor,
-                          )
-                        else
-                          const SizedBox(width: 12),
-                        if (socket.direction == GraphSocketDirection.input)
-                          const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            socket.label,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                        if (socket.direction == GraphSocketDirection.output) ...[
-                          const SizedBox(width: 8),
-                          _SocketDot(
-                            isActive: pendingPropertyId == socket.id,
-                            isConnected: socket.isConnected,
-                            color: node.accentColor,
-                          ),
-                        ] else
-                          const SizedBox(width: 12),
-                      ],
-                    ),
-                  ),
                 ),
-              ),
-            );
-          }),
-          const SizedBox(height: 8),
-        ],
+              );
+            }),
+            const SizedBox(height: nodeEditorFooterSpacing),
+          ],
+        ),
       ),
     );
   }
@@ -448,7 +499,7 @@ class _DefaultNodeBody extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: node.accentColor.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(color: Colors.white10),
       ),
       child: Center(
@@ -476,8 +527,8 @@ class _SocketDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 12,
-      height: 12,
+      width: 10,
+      height: 10,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color.withValues(
@@ -545,8 +596,8 @@ class _NodeEditorPainter extends CustomPainter {
   }
 
   void _paintGrid(Canvas canvas) {
-    const minorSpacing = 32.0;
-    const majorSpacing = 128.0;
+    const minorSpacing = 28.0;
+    const majorSpacing = 112.0;
     final minorPaint = Paint()..color = const Color(0xFF10141E);
     final majorPaint = Paint()..color = const Color(0xFF181D2B);
     final sceneRect = viewport.visibleSceneRect(viewportSize).inflate(majorSpacing);

@@ -6,44 +6,6 @@ part of 'graph_models.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-GraphValueData _$GraphValueDataFromJson(Map<String, dynamic> json) =>
-    GraphValueData(
-      valueType: $enumDecode(_$GraphValueTypeEnumMap, json['valueType']),
-      scalarValue: (json['scalarValue'] as num?)?.toDouble(),
-      enumValue: (json['enumValue'] as num?)?.toInt(),
-      colorValue: _$JsonConverterFromJson<List<double>, Vector4>(
-        json['colorValue'],
-        const Vector4JsonConverter().fromJson,
-      ),
-    );
-
-Map<String, dynamic> _$GraphValueDataToJson(GraphValueData instance) =>
-    <String, dynamic>{
-      'valueType': _$GraphValueTypeEnumMap[instance.valueType]!,
-      'scalarValue': instance.scalarValue,
-      'enumValue': instance.enumValue,
-      'colorValue': _$JsonConverterToJson<List<double>, Vector4>(
-        instance.colorValue,
-        const Vector4JsonConverter().toJson,
-      ),
-    };
-
-const _$GraphValueTypeEnumMap = {
-  GraphValueType.scalar: 'scalar',
-  GraphValueType.color: 'color',
-  GraphValueType.enumChoice: 'enumChoice',
-};
-
-Value? _$JsonConverterFromJson<Json, Value>(
-  Object? json,
-  Value? Function(Json json) fromJson,
-) => json == null ? null : fromJson(json as Json);
-
-Json? _$JsonConverterToJson<Json, Value>(
-  Value? value,
-  Json? Function(Value value) toJson,
-) => value == null ? null : toJson(value);
-
 GraphNodePropertyData _$GraphNodePropertyDataFromJson(
   Map<String, dynamic> json,
 ) => GraphNodePropertyData(

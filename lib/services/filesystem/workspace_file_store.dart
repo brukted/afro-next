@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../features/material_graph/material_graph_migration.dart';
 import '../../features/workspace/models/workspace_models.dart';
 
 class WorkspaceFileStore {
@@ -9,7 +10,16 @@ class WorkspaceFileStore {
   Future<WorkspaceProjectDocument> load(String path) async {
     final file = File(path);
     final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-    return WorkspaceProjectDocument.fromJson(json);
+    final workspace = WorkspaceProjectDocument.fromJson(json);
+    return workspace.copyWith(
+      materialGraphs: workspace.materialGraphs
+          .map(
+            (entry) => entry.copyWith(
+              graph: MaterialGraphMigration.normalize(entry.graph),
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   Future<void> save({
