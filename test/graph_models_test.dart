@@ -45,4 +45,43 @@ void main() {
     expect(color.asFloat4().z, closeTo(0.3, 1e-6));
     expect(color.asFloat4().w, closeTo(0.4, 1e-6));
   });
+
+  test('bezier spline splitAt inserts a shape-preserving interior point', () {
+    final spline = GraphBezierSpline.identity().splitAt(0.5);
+
+    expect(spline.points.length, 3);
+    expect(spline.points[1].pos.x, closeTo(0.5, 1e-4));
+    expect(spline.points[1].pos.y, closeTo(0.5, 1e-4));
+    expect(spline.valueAt(0.25), closeTo(0.25, 1e-3));
+    expect(spline.valueAt(0.75), closeTo(0.75, 1e-3));
+  });
+
+  test(
+    'bezier spline move helpers clamp control points to a valid monotonic range',
+    () {
+      final spline = GraphBezierSpline.identity().splitAt(0.5);
+      final movedAnchor = spline.moveAnchor(1, Vector2(0.9, 1.4));
+      final movedIncoming = movedAnchor.moveIncomingTangent(1, Vector2(-1, -1));
+      final movedOutgoing = movedIncoming.moveOutgoingTangent(1, Vector2(2, 2));
+
+      expect(movedAnchor.points[1].pos.x, inInclusiveRange(0.0, 1.0));
+      expect(movedAnchor.points[1].pos.y, inInclusiveRange(0.0, 1.0));
+      expect(
+        movedIncoming.points[1].t1.x,
+        greaterThanOrEqualTo(movedIncoming.points[0].pos.x),
+      );
+      expect(
+        movedIncoming.points[1].t1.x,
+        lessThanOrEqualTo(movedIncoming.points[1].pos.x),
+      );
+      expect(
+        movedOutgoing.points[1].t2.x,
+        greaterThanOrEqualTo(movedOutgoing.points[1].pos.x),
+      );
+      expect(
+        movedOutgoing.points[1].t2.x,
+        lessThanOrEqualTo(movedOutgoing.points[2].pos.x),
+      );
+    },
+  );
 }

@@ -12,7 +12,7 @@ void main() {
     controller.duplicateNode(source.id);
 
     final duplicate = controller.selectedNode!;
-    expect(controller.graph.nodes.length, 5);
+    expect(controller.graph.nodes.length, 6);
     expect(duplicate.id, isNot(source.id));
     expect(duplicate.definitionId, source.definitionId);
     expect(duplicate.name, startsWith(source.name));
@@ -33,10 +33,7 @@ void main() {
 
     controller.disconnectNode(mixNode.id);
 
-    expect(
-      controller.graph.nodes.any((node) => node.id == mixNode.id),
-      isTrue,
-    );
+    expect(controller.graph.nodes.any((node) => node.id == mixNode.id), isTrue);
     expect(
       controller.graph.links.any(
         (link) => link.fromNodeId == mixNode.id || link.toNodeId == mixNode.id,

@@ -1,3 +1,4 @@
+import 'package:bezier/bezier.dart';
 import 'package:vector_math/vector_math.dart';
 
 enum GraphValueType {
@@ -20,6 +21,8 @@ enum GraphValueUnit { none, rotation, position, power2, color, path }
 enum GraphPropertyType { input, output, descriptor }
 
 enum GraphSocketDirection { input, output }
+
+enum GraphCurveChannel { luminance, red, green, blue, alpha }
 
 class EnumChoiceOption {
   const EnumChoiceOption({
@@ -44,11 +47,8 @@ class GraphBezierControlPoint {
   final Vector2 pos;
   final Vector2 t2;
 
-  GraphBezierControlPoint clone() => GraphBezierControlPoint(
-    t1: t1.clone(),
-    pos: pos.clone(),
-    t2: t2.clone(),
-  );
+  GraphBezierControlPoint clone() =>
+      GraphBezierControlPoint(t1: t1.clone(), pos: pos.clone(), t2: t2.clone());
 
   factory GraphBezierControlPoint.fromJson(Map<String, dynamic> json) {
     return GraphBezierControlPoint(
@@ -65,10 +65,27 @@ class GraphBezierControlPoint {
   };
 }
 
+class GraphBezierSegment {
+  const GraphBezierSegment({required this.start, required this.end});
+
+  final GraphBezierControlPoint start;
+  final GraphBezierControlPoint end;
+
+  CubicBezier toBezier() {
+    return CubicBezier([
+      start.pos.clone(),
+      start.t2.clone(),
+      end.t1.clone(),
+      end.pos.clone(),
+    ]);
+  }
+}
+
 class GraphBezierSpline {
   const GraphBezierSpline({required this.points});
 
   final List<GraphBezierControlPoint> points;
+  static const double epsilon = 1e-5;
 
   factory GraphBezierSpline.identity() {
     return GraphBezierSpline(
@@ -91,6 +108,24 @@ class GraphBezierSpline {
     points: points.map((point) => point.clone()).toList(growable: false),
   );
 
+  bool get hasEditableInteriorPoints => points.length > 2;
+
+  List<GraphBezierSegment> get segments {
+    final normalized = validated();
+    if (normalized.points.length < 2) {
+      return const <GraphBezierSegment>[];
+    }
+
+    return List<GraphBezierSegment>.generate(
+      normalized.points.length - 1,
+      (index) => GraphBezierSegment(
+        start: normalized.points[index],
+        end: normalized.points[index + 1],
+      ),
+      growable: false,
+    );
+  }
+
   factory GraphBezierSpline.fromJson(Map<String, dynamic> json) {
     final rawPoints = json['points'];
     if (rawPoints is! List) {
@@ -108,6 +143,270 @@ class GraphBezierSpline {
   Map<String, dynamic> toJson() => {
     'points': points.map((point) => point.toJson()).toList(growable: false),
   };
+
+  GraphBezierSpline sort() {
+    final sortedPoints =
+        points.map((point) => point.clone()).toList(growable: true)
+          ..sort((left, right) => left.pos.x.compareTo(right.pos.x));
+    return GraphBezierSpline(points: sortedPoints);
+  }
+
+  GraphBezierSpline validated() {
+    final sorted = sort().points;
+    if (sorted.length < 2) {
+      return GraphBezierSpline.identity();
+    }
+
+    final normalizedPoints = List<GraphBezierControlPoint>.from(
+      sorted.map((point) => point.clone()),
+      growable: true,
+    );
+
+    final first = normalizedPoints.first;
+    final second = normalizedPoints[1];
+    final firstPos = Vector2(
+      _clamp(first.pos.x, 0, second.pos.x),
+      _clamp(first.pos.y, 0, 1),
+    );
+    normalizedPoints[0] = GraphBezierControlPoint(
+      t1: firstPos.clone(),
+      pos: firstPos,
+      t2: Vector2(
+        _clamp(first.t2.x, firstPos.x, second.pos.x),
+        _clamp(first.t2.y, 0, 1),
+      ),
+    );
+
+    for (var index = 1; index < normalizedPoints.length - 1; index += 1) {
+      final previous = normalizedPoints[index - 1];
+      final current = normalizedPoints[index];
+      final next = normalizedPoints[index + 1];
+      final position = Vector2(
+        _clamp(current.pos.x, previous.pos.x, next.pos.x),
+        _clamp(current.pos.y, 0, 1),
+      );
+      normalizedPoints[index] = GraphBezierControlPoint(
+        t1: Vector2(
+          _clamp(current.t1.x, previous.pos.x, position.x),
+          _clamp(current.t1.y, 0, 1),
+        ),
+        pos: position,
+        t2: Vector2(
+          _clamp(current.t2.x, position.x, next.pos.x),
+          _clamp(current.t2.y, 0, 1),
+        ),
+      );
+    }
+
+    final penultimate = normalizedPoints[normalizedPoints.length - 2];
+    final last = normalizedPoints.last;
+    final lastPos = Vector2(
+      _clamp(last.pos.x, penultimate.pos.x, 1),
+      _clamp(last.pos.y, 0, 1),
+    );
+    normalizedPoints[normalizedPoints.length - 1] = GraphBezierControlPoint(
+      t1: Vector2(
+        _clamp(last.t1.x, penultimate.pos.x, lastPos.x),
+        _clamp(last.t1.y, 0, 1),
+      ),
+      pos: lastPos,
+      t2: lastPos.clone(),
+    );
+
+    return GraphBezierSpline(points: normalizedPoints);
+  }
+
+  List<Vector2> samplePoints({int samplesPerSegment = 24}) {
+    final normalized = validated();
+    final segments = normalized.segments;
+    if (segments.isEmpty) {
+      return [Vector2.zero(), Vector2.all(1)];
+    }
+
+    final points = <Vector2>[];
+    for (
+      var segmentIndex = 0;
+      segmentIndex < segments.length;
+      segmentIndex += 1
+    ) {
+      final curve = segments[segmentIndex].toBezier();
+      for (
+        var sampleIndex = 0;
+        sampleIndex <= samplesPerSegment;
+        sampleIndex += 1
+      ) {
+        if (segmentIndex > 0 && sampleIndex == 0) {
+          continue;
+        }
+
+        final point = curve.pointAt(sampleIndex / samplesPerSegment);
+        points.add(Vector2(point.x, point.y));
+      }
+    }
+
+    return List<Vector2>.unmodifiable(points);
+  }
+
+  double valueAt(double x) {
+    final normalized = validated();
+    if (normalized.points.length < 2) {
+      return x.clamp(0, 1).toDouble();
+    }
+
+    final clampedX = _clamp(
+      x,
+      normalized.points.first.pos.x,
+      normalized.points.last.pos.x,
+    );
+    final segmentIndex = normalized._segmentIndexForX(clampedX);
+    if (segmentIndex == null) {
+      return normalized.points.last.pos.y;
+    }
+
+    final curve = normalized.segments[segmentIndex].toBezier();
+    final t = normalized._solveTForX(curve, clampedX);
+    return curve.pointAt(t).y.clamp(0, 1).toDouble();
+  }
+
+  GraphBezierSpline splitAt(double x) {
+    final normalized = validated();
+    if (normalized.points.length < 2) {
+      return GraphBezierSpline.identity();
+    }
+
+    final minX = normalized.points.first.pos.x;
+    final maxX = normalized.points.last.pos.x;
+    final clampedX = _clamp(x, minX, maxX);
+    if (normalized.points.any(
+      (point) => (point.pos.x - clampedX).abs() <= epsilon,
+    )) {
+      return normalized;
+    }
+
+    final segmentIndex = normalized._segmentIndexForX(clampedX);
+    if (segmentIndex == null) {
+      return normalized;
+    }
+
+    final curve = normalized.segments[segmentIndex].toBezier();
+    final t = normalized._solveTForX(curve, clampedX);
+    if (t <= epsilon || t >= 1 - epsilon) {
+      return normalized;
+    }
+
+    final leftCurve = curve.leftSubcurveAt(t) as CubicBezier;
+    final rightCurve = curve.rightSubcurveAt(t) as CubicBezier;
+    final updatedPoints = List<GraphBezierControlPoint>.from(
+      normalized.points.map((point) => point.clone()),
+      growable: true,
+    );
+    final originalLeft = updatedPoints[segmentIndex];
+    final originalRight = updatedPoints[segmentIndex + 1];
+
+    updatedPoints[segmentIndex] = GraphBezierControlPoint(
+      t1: originalLeft.t1.clone(),
+      pos: originalLeft.pos.clone(),
+      t2: leftCurve.points[1].clone(),
+    );
+    updatedPoints[segmentIndex + 1] = GraphBezierControlPoint(
+      t1: rightCurve.points[2].clone(),
+      pos: originalRight.pos.clone(),
+      t2: originalRight.t2.clone(),
+    );
+    updatedPoints.insert(
+      segmentIndex + 1,
+      GraphBezierControlPoint(
+        t1: leftCurve.points[2].clone(),
+        pos: leftCurve.points[3].clone(),
+        t2: rightCurve.points[1].clone(),
+      ),
+    );
+
+    return GraphBezierSpline(points: updatedPoints).validated();
+  }
+
+  GraphBezierSpline moveAnchor(int index, Vector2 nextPosition) {
+    if (index <= 0 || index >= points.length - 1) {
+      return validated();
+    }
+
+    final updatedPoints = List<GraphBezierControlPoint>.from(
+      validated().points.map((point) => point.clone()),
+      growable: true,
+    );
+    final current = updatedPoints[index];
+    final delta = nextPosition - current.pos;
+    updatedPoints[index] = GraphBezierControlPoint(
+      t1: current.t1 + delta,
+      pos: nextPosition.clone(),
+      t2: current.t2 + delta,
+    );
+
+    return GraphBezierSpline(points: updatedPoints).validated();
+  }
+
+  GraphBezierSpline moveIncomingTangent(int index, Vector2 nextPosition) {
+    if (index <= 0 || index >= points.length) {
+      return validated();
+    }
+
+    final updatedPoints = List<GraphBezierControlPoint>.from(
+      validated().points.map((point) => point.clone()),
+      growable: true,
+    );
+    final current = updatedPoints[index];
+    updatedPoints[index] = GraphBezierControlPoint(
+      t1: nextPosition.clone(),
+      pos: current.pos.clone(),
+      t2: current.t2.clone(),
+    );
+    return GraphBezierSpline(points: updatedPoints).validated();
+  }
+
+  GraphBezierSpline moveOutgoingTangent(int index, Vector2 nextPosition) {
+    if (index < 0 || index >= points.length - 1) {
+      return validated();
+    }
+
+    final updatedPoints = List<GraphBezierControlPoint>.from(
+      validated().points.map((point) => point.clone()),
+      growable: true,
+    );
+    final current = updatedPoints[index];
+    updatedPoints[index] = GraphBezierControlPoint(
+      t1: current.t1.clone(),
+      pos: current.pos.clone(),
+      t2: nextPosition.clone(),
+    );
+    return GraphBezierSpline(points: updatedPoints).validated();
+  }
+
+  int? _segmentIndexForX(double x) {
+    final normalizedPoints = points;
+    for (var index = 0; index < normalizedPoints.length - 1; index += 1) {
+      final left = normalizedPoints[index].pos.x;
+      final right = normalizedPoints[index + 1].pos.x;
+      if (x >= left && x <= right) {
+        return index;
+      }
+    }
+    return null;
+  }
+
+  double _solveTForX(CubicBezier curve, double x) {
+    var low = 0.0;
+    var high = 1.0;
+    for (var iteration = 0; iteration < 32; iteration += 1) {
+      final mid = (low + high) * 0.5;
+      final point = curve.pointAt(mid);
+      if (point.x < x) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+    return (low + high) * 0.5;
+  }
 }
 
 class GraphColorCurveData {
@@ -160,6 +459,29 @@ class GraphColorCurveData {
     'blue': blue.toJson(),
     'alpha': alpha.toJson(),
   };
+
+  GraphBezierSpline splineFor(GraphCurveChannel channel) {
+    return switch (channel) {
+      GraphCurveChannel.luminance => lum,
+      GraphCurveChannel.red => red,
+      GraphCurveChannel.green => green,
+      GraphCurveChannel.blue => blue,
+      GraphCurveChannel.alpha => alpha,
+    };
+  }
+
+  GraphColorCurveData copyWithSpline(
+    GraphCurveChannel channel,
+    GraphBezierSpline spline,
+  ) {
+    return GraphColorCurveData(
+      lum: channel == GraphCurveChannel.luminance ? spline : lum.clone(),
+      red: channel == GraphCurveChannel.red ? spline : red.clone(),
+      green: channel == GraphCurveChannel.green ? spline : green.clone(),
+      blue: channel == GraphCurveChannel.blue ? spline : blue.clone(),
+      alpha: channel == GraphCurveChannel.alpha ? spline : alpha.clone(),
+    );
+  }
 }
 
 class GraphPropertyDefinition {
@@ -196,8 +518,7 @@ class GraphPropertyDefinition {
   bool get isSocket => socket;
 
   bool get isColor =>
-      valueType == GraphValueType.float4 &&
-      valueUnit == GraphValueUnit.color;
+      valueType == GraphValueType.float4 && valueUnit == GraphValueUnit.color;
 
   GraphSocketDirection? get socketDirection {
     if (!socket) {
@@ -252,10 +573,7 @@ Map<String, dynamic> _vector2ToJson(Vector2 value) => {
 
 Vector2 _vector2FromJson(Object? json) {
   if (json is List) {
-    return Vector2(
-      _numAt(json, 0),
-      _numAt(json, 1),
-    );
+    return Vector2(_numAt(json, 0), _numAt(json, 1));
   }
 
   if (json is Map<String, dynamic>) {
@@ -289,3 +607,6 @@ double _numAt(List<dynamic> values, int index, {double fallback = 0}) {
   return fallback;
 }
 
+double _clamp(num value, num min, num max) {
+  return value.clamp(min, max).toDouble();
+}

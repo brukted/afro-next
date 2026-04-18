@@ -33,30 +33,35 @@ void main() {
     final channelSelect = catalog.definitionById('channel_select_node');
     final circle = catalog.definitionById('circle_node');
 
-    expect(
-      solidColor.properties.map((property) => property.key),
-      ['color', '_output'],
-    );
-    expect(
-      mix.properties.map((property) => property.key),
-      ['Foreground', 'Background', 'Mask', 'blendMode', 'alphaMode', 'alpha', '_output'],
-    );
-    expect(
-      channelSelect.properties.map((property) => property.key),
-      [
-        'input1',
-        'input2',
-        'channel_red',
-        'channel_green',
-        'channel_blue',
-        'channel_alpha',
-        '_output',
-      ],
-    );
-    expect(
-      circle.properties.map((property) => property.key),
-      ['radius', 'outline', 'width', 'height', '_output'],
-    );
+    expect(solidColor.properties.map((property) => property.key), [
+      'color',
+      '_output',
+    ]);
+    expect(mix.properties.map((property) => property.key), [
+      'Foreground',
+      'Background',
+      'Mask',
+      'blendMode',
+      'alphaMode',
+      'alpha',
+      '_output',
+    ]);
+    expect(channelSelect.properties.map((property) => property.key), [
+      'input1',
+      'input2',
+      'channel_red',
+      'channel_green',
+      'channel_blue',
+      'channel_alpha',
+      '_output',
+    ]);
+    expect(circle.properties.map((property) => property.key), [
+      'radius',
+      'outline',
+      'width',
+      'height',
+      '_output',
+    ]);
 
     final blendMode = mix.propertyDefinition('blendMode');
     expect(blendMode.enumOptions.length, 25);
@@ -76,7 +81,10 @@ void main() {
 
     expect(mix.propertyDefinition('Foreground').isSocket, isTrue);
     expect(mix.propertyDefinition('Mask').isSocket, isTrue);
-    expect(mix.propertyDefinition('_output').propertyType, GraphPropertyType.output);
+    expect(
+      mix.propertyDefinition('_output').propertyType,
+      GraphPropertyType.output,
+    );
     expect(mix.propertyDefinition('Mask').valueUnit, GraphValueUnit.color);
   });
 
@@ -86,28 +94,56 @@ void main() {
     final mix = catalog.definitionById('mix_node');
     final channelSelect = catalog.definitionById('channel_select_node');
     final circle = catalog.definitionById('circle_node');
+    final curveDemo = catalog.definitionById('curve_demo_node');
 
-    expect(_vector4Values(solidColor.propertyDefinition('color').defaultValue as Vector4), [
-      1.0,
-      1.0,
-      1.0,
-      1.0,
-    ]);
-    expect(_vector4Values(mix.propertyDefinition('Foreground').defaultValue as Vector4), [
-      1.0,
-      1.0,
-      1.0,
-      1.0,
-    ]);
-    expect(_vector4Values(channelSelect.propertyDefinition('input1').defaultValue as Vector4), [
-      1.0,
-      1.0,
-      1.0,
-      1.0,
-    ]);
+    expect(
+      _vector4Values(
+        solidColor.propertyDefinition('color').defaultValue as Vector4,
+      ),
+      [1.0, 1.0, 1.0, 1.0],
+    );
+    expect(
+      _vector4Values(
+        mix.propertyDefinition('Foreground').defaultValue as Vector4,
+      ),
+      [1.0, 1.0, 1.0, 1.0],
+    );
+    expect(
+      _vector4Values(
+        channelSelect.propertyDefinition('input1').defaultValue as Vector4,
+      ),
+      [1.0, 1.0, 1.0, 1.0],
+    );
     expect(circle.propertyDefinition('width').defaultValue, 0.1);
     expect(circle.propertyDefinition('height').defaultValue, 0.1);
+    expect(
+      curveDemo.propertyDefinition('curve').defaultValue,
+      isA<GraphColorCurveData>(),
+    );
+    expect(
+      (curveDemo.propertyDefinition('curve').defaultValue
+              as GraphColorCurveData)
+          .lum
+          .points
+          .length,
+      2,
+    );
+  });
+
+  test('starter graph includes the curve demo node', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final graph = catalog.createStarterGraph(name: 'Starter');
+
+    expect(
+      graph.nodes.any((node) => node.definitionId == 'curve_demo_node'),
+      isTrue,
+    );
   });
 }
 
-List<double> _vector4Values(Vector4 value) => [value.x, value.y, value.z, value.w];
+List<double> _vector4Values(Vector4 value) => [
+  value.x,
+  value.y,
+  value.z,
+  value.w,
+];

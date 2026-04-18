@@ -1,6 +1,7 @@
 import 'package:eyecandy/app/theme/app_theme.dart';
 import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
 import 'package:eyecandy/features/material_graph/material_graph_controller.dart';
+import 'package:eyecandy/features/property_editor/color_curve_editor.dart';
 import 'package:eyecandy/features/property_editor/property_editor_panel.dart';
 import 'package:eyecandy/shared/ids/id_factory.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +14,9 @@ void main() {
     final catalog = MaterialGraphCatalog(IdFactory());
     final controller = MaterialGraphController.preview();
     final graph = catalog.createStarterGraph(name: 'Test');
-    final circleNode = graph.nodes.firstWhere((node) => node.definitionId == 'circle_node');
+    final circleNode = graph.nodes.firstWhere(
+      (node) => node.definitionId == 'circle_node',
+    );
 
     controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(circleNode.id);
@@ -45,7 +48,9 @@ void main() {
     final catalog = MaterialGraphCatalog(IdFactory());
     final controller = MaterialGraphController.preview();
     final graph = catalog.createStarterGraph(name: 'Test');
-    final mixNode = graph.nodes.firstWhere((node) => node.definitionId == 'mix_node');
+    final mixNode = graph.nodes.firstWhere(
+      (node) => node.definitionId == 'mix_node',
+    );
 
     controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(mixNode.id);
@@ -70,5 +75,35 @@ void main() {
 
     expect(find.text('Pick Color'), findsOneWidget);
     expect(find.text('Apply'), findsOneWidget);
+  });
+
+  testWidgets('curve demo node exposes the bezier curve editor', (
+    tester,
+  ) async {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final controller = MaterialGraphController.preview();
+    final graph = catalog.createStarterGraph(name: 'Test');
+    final curveNode = graph.nodes.firstWhere(
+      (node) => node.definitionId == 'curve_demo_node',
+    );
+
+    controller.bindGraph(graph: graph, onChanged: (_) {});
+    controller.selectNode(curveNode.id);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(),
+        home: Scaffold(
+          body: SizedBox(
+            width: 360,
+            height: 760,
+            child: PropertyEditorPanel(controller: controller),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(ColorBezierCurveEditor), findsOneWidget);
+    expect(find.text('Double-click to add a point'), findsOneWidget);
   });
 }

@@ -5,16 +5,14 @@ import 'package:vector_math/vector_math.dart' show Vector2, Vector3, Vector4;
 
 import '../../shared/colors/vector4_color_adapter.dart';
 import '../../shared/widgets/panel_frame.dart';
+import 'color_curve_editor.dart';
 import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import '../material_graph/material_graph_controller.dart';
 
 class PropertyEditorPanel extends StatelessWidget {
-  const PropertyEditorPanel({
-    super.key,
-    required this.controller,
-  });
+  const PropertyEditorPanel({super.key, required this.controller});
 
   final MaterialGraphController controller;
 
@@ -40,13 +38,18 @@ class PropertyEditorPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final definition = controller.definitionForNode(node);
     final properties = controller.boundPropertiesForNode(node);
-    final editableProperties = properties.where((property) => property.isEditable).toList(
-      growable: false,
-    );
-    final outputProperties = properties
-        .where((property) => property.definition.propertyType == GraphPropertyType.output)
+    final editableProperties = properties
+        .where((property) => property.isEditable)
         .toList(growable: false);
-    final accentColor = Vector4ColorAdapter.toFlutterColor(definition.accentColor);
+    final outputProperties = properties
+        .where(
+          (property) =>
+              property.definition.propertyType == GraphPropertyType.output,
+        )
+        .toList(growable: false);
+    final accentColor = Vector4ColorAdapter.toFlutterColor(
+      definition.accentColor,
+    );
 
     return PanelFrame(
       title: 'Property Editor',
@@ -56,7 +59,9 @@ class PropertyEditorPanel extends StatelessWidget {
         children: [
           DecoratedBox(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
+              color: theme.colorScheme.surfaceContainerHighest.withValues(
+                alpha: 0.12,
+              ),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: theme.colorScheme.outlineVariant.withValues(alpha: 0.22),
@@ -72,7 +77,10 @@ class PropertyEditorPanel extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(definition.label, style: theme.textTheme.titleSmall),
+                        Text(
+                          definition.label,
+                          style: theme.textTheme.titleSmall,
+                        ),
                         if (definition.description.isNotEmpty) ...[
                           const SizedBox(height: 1),
                           Text(
@@ -145,7 +153,9 @@ class _EditablePropertyField extends StatelessWidget {
 
     return _PropertyCard(
       label: property.label,
-      description: definition.description == 'Empty desc' ? null : definition.description,
+      description: definition.description == 'Empty desc'
+          ? null
+          : definition.description,
       badge: _buildBadge(context),
       child: switch (definition.valueType) {
         GraphValueType.integer => _NumericValueEditor(
@@ -161,7 +171,9 @@ class _EditablePropertyField extends StatelessWidget {
           ),
         ),
         GraphValueType.integer2 => _VectorNumberEditor(
-          values: (property.value as List<int>).map((value) => value.toDouble()).toList(),
+          values: (property.value as List<int>)
+              .map((value) => value.toDouble())
+              .toList(),
           labels: const ['X', 'Y'],
           integer: true,
           min: definition.min?.toDouble(),
@@ -170,11 +182,15 @@ class _EditablePropertyField extends StatelessWidget {
           onChanged: (values) => controller.updatePropertyValue(
             nodeId: nodeId,
             propertyId: property.id,
-            value: GraphValueData.integer2(values.map((value) => value.round()).toList()),
+            value: GraphValueData.integer2(
+              values.map((value) => value.round()).toList(),
+            ),
           ),
         ),
         GraphValueType.integer3 => _VectorNumberEditor(
-          values: (property.value as List<int>).map((value) => value.toDouble()).toList(),
+          values: (property.value as List<int>)
+              .map((value) => value.toDouble())
+              .toList(),
           labels: const ['X', 'Y', 'Z'],
           integer: true,
           min: definition.min?.toDouble(),
@@ -183,11 +199,15 @@ class _EditablePropertyField extends StatelessWidget {
           onChanged: (values) => controller.updatePropertyValue(
             nodeId: nodeId,
             propertyId: property.id,
-            value: GraphValueData.integer3(values.map((value) => value.round()).toList()),
+            value: GraphValueData.integer3(
+              values.map((value) => value.round()).toList(),
+            ),
           ),
         ),
         GraphValueType.integer4 => _VectorNumberEditor(
-          values: (property.value as List<int>).map((value) => value.toDouble()).toList(),
+          values: (property.value as List<int>)
+              .map((value) => value.toDouble())
+              .toList(),
           labels: const ['X', 'Y', 'Z', 'W'],
           integer: true,
           min: definition.min?.toDouble(),
@@ -196,7 +216,9 @@ class _EditablePropertyField extends StatelessWidget {
           onChanged: (values) => controller.updatePropertyValue(
             nodeId: nodeId,
             propertyId: property.id,
-            value: GraphValueData.integer4(values.map((value) => value.round()).toList()),
+            value: GraphValueData.integer4(
+              values.map((value) => value.round()).toList(),
+            ),
           ),
         ),
         GraphValueType.float => _NumericValueEditor(
@@ -322,7 +344,10 @@ class _EditablePropertyField extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           dropdownColor: theme.colorScheme.surfaceContainerLow,
           decoration: _denseInputDecoration(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 6,
+            ),
           ),
           items: definition.enumOptions
               .map(
@@ -349,6 +374,11 @@ class _EditablePropertyField extends StatelessWidget {
         ),
         GraphValueType.colorBezierCurve => _CurveSummaryField(
           curve: property.value as GraphColorCurveData,
+          onChanged: (nextCurve) => controller.updatePropertyValue(
+            nodeId: nodeId,
+            propertyId: property.id,
+            value: GraphValueData.colorCurve(nextCurve),
+          ),
         ),
       },
     );
@@ -452,7 +482,9 @@ class _PropertyCard extends StatelessWidget {
     final theme = Theme.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.12,
+        ),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.22),
@@ -473,10 +505,7 @@ class _PropertyCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (badge != null) ...[
-                  const SizedBox(width: 8),
-                  badge!,
-                ],
+                if (badge != null) ...[const SizedBox(width: 8), badge!],
               ],
             ),
             if (description != null && description!.isNotEmpty) ...[
@@ -500,10 +529,7 @@ class _PropertyCard extends StatelessWidget {
 enum BadgeTone { subtle, active }
 
 class _MetaBadge extends StatelessWidget {
-  const _MetaBadge({
-    required this.label,
-    required this.tone,
-  });
+  const _MetaBadge({required this.label, required this.tone});
 
   final String label;
   final BadgeTone tone;
@@ -529,7 +555,9 @@ class _MetaBadge extends StatelessWidget {
         child: Text(
           label,
           style: theme.textTheme.bodySmall?.copyWith(
-            color: active ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+            color: active
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -626,8 +654,12 @@ class _ColorEditor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labels = includeAlpha ? const ['R', 'G', 'B', 'A'] : const ['R', 'G', 'B'];
-    final values = includeAlpha ? _vector4ToList(color) : <double>[color.x, color.y, color.z];
+    final labels = includeAlpha
+        ? const ['R', 'G', 'B', 'A']
+        : const ['R', 'G', 'B'];
+    final values = includeAlpha
+        ? _vector4ToList(color)
+        : <double>[color.x, color.y, color.z];
     final swatchColor = includeAlpha
         ? color
         : Vector4(color.x, color.y, color.z, 1);
@@ -670,7 +702,9 @@ class _ColorEditor extends StatelessWidget {
         const SizedBox(height: 6),
         ...List.generate(values.length, (index) {
           return Padding(
-            padding: EdgeInsets.only(bottom: index == values.length - 1 ? 0 : 6),
+            padding: EdgeInsets.only(
+              bottom: index == values.length - 1 ? 0 : 6,
+            ),
             child: _NumberField(
               label: labels[index],
               value: values[index],
@@ -773,7 +807,9 @@ class _NumberFieldState extends State<_NumberField> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: _formatNumber(widget.value, widget.integer));
+    _controller = TextEditingController(
+      text: _formatNumber(widget.value, widget.integer),
+    );
     _focusNode = FocusNode();
   }
 
@@ -841,7 +877,10 @@ class _NumberFieldState extends State<_NumberField> {
             focusNode: _focusNode,
             decoration: _denseInputDecoration(),
             textAlign: TextAlign.right,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+            keyboardType: const TextInputType.numberWithOptions(
+              decimal: true,
+              signed: true,
+            ),
             inputFormatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[-0-9.]')),
             ],
@@ -936,42 +975,19 @@ class _StringValueEditorState extends State<_StringValueEditor> {
 }
 
 class _CurveSummaryField extends StatelessWidget {
-  const _CurveSummaryField({
-    required this.curve,
-  });
+  const _CurveSummaryField({required this.curve, required this.onChanged});
 
   final GraphColorCurveData curve;
+  final ValueChanged<GraphColorCurveData> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            'L:${curve.lum.points.length} R:${curve.red.points.length} '
-            'G:${curve.green.points.length} B:${curve.blue.points.length} '
-            'A:${curve.alpha.points.length}',
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'Curve editor pending',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
+    return ColorBezierCurveEditor(curve: curve, onChanged: onChanged);
   }
 }
 
 class _SocketSummaryTile extends StatelessWidget {
-  const _SocketSummaryTile({
-    required this.controller,
-    required this.property,
-  });
+  const _SocketSummaryTile({required this.controller, required this.property});
 
   final MaterialGraphController controller;
   final GraphPropertyBinding property;
@@ -986,7 +1002,9 @@ class _SocketSummaryTile extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.12,
+        ),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.22),
@@ -1024,10 +1042,7 @@ InputDecoration _denseInputDecoration({
     vertical: 8,
   ),
 }) {
-  return InputDecoration(
-    isDense: true,
-    contentPadding: contentPadding,
-  );
+  return InputDecoration(isDense: true, contentPadding: contentPadding);
 }
 
 ({double min, double max}) _resolveSliderRange({
@@ -1089,4 +1104,9 @@ List<double> _vector2ToList(Vector2 value) => [value.x, value.y];
 
 List<double> _vector3ToList(Vector3 value) => [value.x, value.y, value.z];
 
-List<double> _vector4ToList(Vector4 value) => [value.x, value.y, value.z, value.w];
+List<double> _vector4ToList(Vector4 value) => [
+  value.x,
+  value.y,
+  value.z,
+  value.w,
+];
