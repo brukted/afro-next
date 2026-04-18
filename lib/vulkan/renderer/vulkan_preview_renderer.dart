@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:math' as math;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 // ignore: implementation_imports
@@ -405,19 +406,34 @@ class _VulkanMaterialExecutor {
     final vertexShader = await _loadShaderBytes(
       'assets/shaders/spirv/material/fullscreen_triangle.vert.spv',
     );
-    final uniformBytes = MaterialNodePreviewSupportRegistry.packUniforms(pass);
+    final uniformBytes = MaterialNodePreviewSupportRegistry.packUniforms(
+      pass,
+      context: MaterialPreviewPackingContext(previewExtent: _previewExtent),
+    );
 
     final inputs = <_TextureUpload>[];
     for (final input in pass.textureInputs) {
       final sourceBytes = input.sourceNodeId == null
           ? null
           : _outputBytesByKey[_nodeKey(graph.graphId, input.sourceNodeId!)];
+      final generatedTexture = sourceBytes == null
+          ? _generatedTextureBytes(input.fallbackValue)
+          : null;
       inputs.add(
         _TextureUpload(
           bindingKey: input.bindingKey,
-          bytes: sourceBytes ?? _defaultTextureBytes(input.fallbackValue),
-          width: sourceBytes == null ? 1 : _previewExtent,
-          height: sourceBytes == null ? 1 : _previewExtent,
+          bytes:
+              sourceBytes ??
+              generatedTexture?.bytes ??
+              _defaultTextureBytes(input.fallbackValue),
+          width:
+              sourceBytes != null
+              ? _previewExtent
+              : generatedTexture?.width ?? 1,
+          height:
+              sourceBytes != null
+              ? _previewExtent
+              : generatedTexture?.height ?? 1,
         ),
       );
     }
@@ -435,6 +451,14 @@ class _VulkanMaterialExecutor {
 
   Uint8List _defaultTextureBytes(GraphValueData value) {
     switch (value.valueType) {
+      case GraphValueType.float3:
+        final vector = value.asFloat3();
+        return Uint8List.fromList(<int>[
+          _toByte(vector.z),
+          _toByte(vector.y),
+          _toByte(vector.x),
+          255,
+        ]);
       case GraphValueType.float4:
         final color = value.asFloat4();
         return Uint8List.fromList(<int>[
@@ -443,12 +467,51 @@ class _VulkanMaterialExecutor {
           _toByte(color.x),
           _toByte(color.w),
         ]);
+      case GraphValueType.boolean:
+        final scalar = value.boolValue ?? false ? 1.0 : 0.0;
+        return Uint8List.fromList(<int>[0, 0, _toByte(scalar), 255]);
+      case GraphValueType.enumChoice:
       case GraphValueType.float:
         final scalar = value.floatValue ?? 0;
         return Uint8List.fromList(<int>[0, 0, _toByte(scalar), 255]);
       default:
         return Uint8List.fromList(const <int>[0, 0, 0, 255]);
     }
+  }
+
+  ({Uint8List bytes, int width, int height})? _generatedTextureBytes(
+    GraphValueData value,
+  ) {
+    if (value.valueType != GraphValueType.colorBezierCurve) {
+      return null;
+    }
+    return (
+      bytes: _curveLutTextureBytes(value.curveValue ?? GraphColorCurveData.identity()),
+      width: 256,
+      height: 1,
+    );
+  }
+
+  Uint8List _curveLutTextureBytes(GraphColorCurveData curve) {
+    const width = 256;
+    final bytes = Uint8List(width * 4);
+    for (var index = 0; index < width; index += 1) {
+      final x = index / (width - 1);
+      final lum = curve.lum.valueAt(x).clamp(0, 1).toDouble();
+      final encodedAlpha = lum <= 0.0001 ? 1.0 : lum;
+      final red = curve.red.valueAt(x).clamp(0, 1).toDouble();
+      final green = curve.green.valueAt(x).clamp(0, 1).toDouble();
+      final blue = curve.blue.valueAt(x).clamp(0, 1).toDouble();
+      final encodedRed = math.sqrt((red * encodedAlpha).clamp(0, 1));
+      final encodedGreen = math.sqrt((green * encodedAlpha).clamp(0, 1));
+      final encodedBlue = math.sqrt((blue * encodedAlpha).clamp(0, 1));
+      final offset = index * 4;
+      bytes[offset] = _toByte(encodedBlue);
+      bytes[offset + 1] = _toByte(encodedGreen);
+      bytes[offset + 2] = _toByte(encodedRed);
+      bytes[offset + 3] = _toByte(encodedAlpha);
+    }
+    return bytes;
   }
 
   int _toByte(double value) => (value.clamp(0, 1) * 255).round();

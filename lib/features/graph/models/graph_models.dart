@@ -66,6 +66,12 @@ class GraphValueData {
         ]),
       );
 
+  GraphValueData.float3x3(List<double> value)
+    : this(
+        valueType: GraphValueType.float3x3,
+        floatValues: _doubleListFromJson(value, 9, fallback: 0),
+      );
+
   const GraphValueData.stringValue(String value)
     : this(valueType: GraphValueType.stringValue, stringValue: value);
 
@@ -130,6 +136,8 @@ class GraphValueData {
         return GraphValueData.float3(_vector3FromJson(json['floatValues']));
       case 'float4':
         return GraphValueData.float4(_vector4FromJson(json['floatValues']));
+      case 'float3x3':
+        return GraphValueData.float3x3(_doubleListFromJson(json['floatValues'], 9));
       case 'stringValue':
         return GraphValueData.stringValue(json['stringValue'] as String? ?? '');
       case 'boolean':
@@ -180,6 +188,10 @@ class GraphValueData {
         'valueType': 'float4',
         'floatValues': _trimOrPadDoubles(floatValues, 4, fallback: 1),
       },
+      GraphValueType.float3x3 => {
+        'valueType': 'float3x3',
+        'floatValues': _trimOrPadDoubles(floatValues, 9),
+      },
       GraphValueType.stringValue => {
         'valueType': 'stringValue',
         'stringValue': stringValue ?? '',
@@ -219,6 +231,8 @@ class GraphValueData {
         return GraphValueData.float3(asFloat3());
       case GraphValueType.float4:
         return GraphValueData.float4(asFloat4());
+      case GraphValueType.float3x3:
+        return GraphValueData.float3x3(asFloat3x3());
       case GraphValueType.stringValue:
         return GraphValueData.stringValue(stringValue ?? '');
       case GraphValueType.boolean:
@@ -248,6 +262,8 @@ class GraphValueData {
         return asFloat3();
       case GraphValueType.float4:
         return asFloat4();
+      case GraphValueType.float3x3:
+        return asFloat3x3();
       case GraphValueType.stringValue:
         return stringValue ?? '';
       case GraphValueType.boolean:
@@ -264,6 +280,9 @@ class GraphValueData {
   Vector3 asFloat3() => _vector3FromJson(floatValues);
 
   Vector4 asFloat4() => _vector4FromJson(floatValues);
+
+  List<double> asFloat3x3() =>
+      List<double>.unmodifiable(_doubleListFromJson(floatValues, 9));
 }
 
 Vector2 _vector2FromJson(Object? json) {

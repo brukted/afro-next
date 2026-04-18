@@ -302,6 +302,11 @@ class _EditablePropertyField extends StatelessWidget {
           nodeId: nodeId,
           controller: controller,
         ),
+        GraphValueType.float3x3 => _FloatMatrix3Field(
+          property: property,
+          nodeId: nodeId,
+          controller: controller,
+        ),
         GraphValueType.stringValue => _StringValueEditor(
           initialValue: property.value as String,
           onSubmitted: (nextValue) => controller.updatePropertyValue(
@@ -458,6 +463,51 @@ class _FloatVectorField extends StatelessWidget {
           nodeId: nodeId,
           propertyId: property.id,
           value: nextValue,
+        );
+      },
+    );
+  }
+}
+
+class _FloatMatrix3Field extends StatelessWidget {
+  const _FloatMatrix3Field({
+    required this.property,
+    required this.nodeId,
+    required this.controller,
+  });
+
+  final GraphPropertyBinding property;
+  final String nodeId;
+  final MaterialGraphController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final definition = property.definition;
+    final values = property.valueData.asFloat3x3();
+    final labels = const [
+      'M00',
+      'M01',
+      'M02',
+      'M10',
+      'M11',
+      'M12',
+      'M20',
+      'M21',
+      'M22',
+    ];
+
+    return _VectorNumberEditor(
+      values: values,
+      labels: labels,
+      integer: false,
+      min: definition.min?.toDouble(),
+      max: definition.max?.toDouble(),
+      step: definition.step ?? 0.01,
+      onChanged: (nextValues) {
+        controller.updatePropertyValue(
+          nodeId: nodeId,
+          propertyId: property.id,
+          value: GraphValueData.float3x3(nextValues),
         );
       },
     );

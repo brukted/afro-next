@@ -59,6 +59,13 @@ class MaterialGraphCatalog {
     EnumChoiceOption(id: 'alpha_2', label: 'Alpha 2', value: 7),
   ];
 
+  static const List<EnumChoiceOption> _fxBlendModes = [
+    EnumChoiceOption(id: 'alpha_blend', label: 'Alpha Blend', value: 0),
+    EnumChoiceOption(id: 'add', label: 'Add', value: 1),
+    EnumChoiceOption(id: 'max', label: 'Max', value: 2),
+    EnumChoiceOption(id: 'add_sub', label: 'Add Sub', value: 3),
+  ];
+
   late final List<MaterialNodeDefinition>
   _definitions = <MaterialNodeDefinition>[
     MaterialNodeDefinition(
@@ -345,6 +352,502 @@ class MaterialGraphCatalog {
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(
+        id: 'image_basic_node',
+        label: 'Image Basic',
+        description: 'Passes the main texture through unchanged.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.image_outlined,
+      accentColor: _color('#73B8FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/image-basic.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'gamma_node',
+        label: 'Gamma',
+        description: 'Applies gamma correction to the main texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput(
+            'gamma',
+            'Gamma',
+            defaultValue: 2.2,
+            min: 0.01,
+            max: 8,
+            step: 0.05,
+            valueUnit: GraphValueUnit.power2,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.exposure_outlined,
+      accentColor: _color('#F6C15A'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/gamma.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'levels_node',
+        label: 'Levels',
+        description: 'Adjusts range and gamma-like mid values per channel.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _float3Input(
+            'minValues',
+            'Min Values',
+            defaultValue: vmath.Vector3.zero(),
+          ),
+          _float3Input(
+            'maxValues',
+            'Max Values',
+            defaultValue: vmath.Vector3(1, 1, 1),
+          ),
+          _float3Input(
+            'midValues',
+            'Mid Values',
+            defaultValue: vmath.Vector3.all(0.5),
+          ),
+          _float2Input(
+            'value',
+            'Value Range',
+            defaultValue: vmath.Vector2(0, 1),
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.equalizer_outlined,
+      accentColor: _color('#A1C96A'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/levels.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'grayscaleconv_node',
+        label: 'Grayscale Convert',
+        description: 'Converts color to grayscale using configurable channel weights.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _float4Input(
+            'weight',
+            'Weight',
+            defaultValue: vmath.Vector4(1, 1, 1, 0),
+            valueUnit: GraphValueUnit.color,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.filter_b_and_w_outlined,
+      accentColor: _color('#C9CEDB'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/grayscaleconv.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'hsl_node',
+        label: 'HSL',
+        description: 'Adjusts hue, saturation, and lightness.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput(
+            'hue',
+            'Hue',
+            defaultValue: 0.0,
+            min: -6,
+            max: 6,
+            step: 0.05,
+            valueUnit: GraphValueUnit.rotation,
+          ),
+          _floatInput(
+            'saturation',
+            'Saturation',
+            defaultValue: 0.0,
+            min: -1,
+            max: 1,
+            step: 0.01,
+          ),
+          _floatInput(
+            'lightness',
+            'Lightness',
+            defaultValue: 0.0,
+            min: -1,
+            max: 1,
+            step: 0.01,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.tune_outlined,
+      accentColor: _color('#FF9D6E'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/hsl.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'invert_node',
+        label: 'Invert',
+        description: 'Inverts individual channels of the main texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _boolInput('invertRed', 'Invert Red', defaultValue: true),
+          _boolInput('invertGreen', 'Invert Green', defaultValue: true),
+          _boolInput('invertBlue', 'Invert Blue', defaultValue: true),
+          _boolInput('invertAlpha', 'Invert Alpha', defaultValue: false),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.invert_colors_outlined,
+      accentColor: _color('#8AE0D1'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/invert.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'sharpen_node',
+        label: 'Sharpen',
+        description: 'Applies unsharp-mask sharpening to the main texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput(
+            'intensity',
+            'Intensity',
+            defaultValue: 1.0,
+            min: 0,
+            max: 8,
+            step: 0.05,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.auto_fix_high_outlined,
+      accentColor: _color('#F4B86C'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/sharpen.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'blur_node',
+        label: 'Blur',
+        description: 'Applies a one-dimensional blur along the pixel-shape axis.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput(
+            'intensity',
+            'Intensity',
+            defaultValue: 8.0,
+            min: 0,
+            max: 64,
+            step: 1,
+          ),
+          _float2Input(
+            'pixel_shape',
+            'Pixel Shape',
+            defaultValue: vmath.Vector2(1, 1),
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.blur_on_outlined,
+      accentColor: _color('#8CC7FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/blur.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'motionblur_node',
+        label: 'Motion Blur',
+        description: 'Applies directional motion blur to the main texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput('tx', 'Direction X', defaultValue: 1.0, step: 0.05),
+          _floatInput('ty', 'Direction Y', defaultValue: 0.0, step: 0.05),
+          _floatInput(
+            'magnitude',
+            'Magnitude',
+            defaultValue: 8.0,
+            min: 1,
+            max: 64,
+            step: 1,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.motion_photos_on_outlined,
+      accentColor: _color('#88A9FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/motionblur.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'warp_node',
+        label: 'Warp',
+        description: 'Warps the main texture using a normal-style warp texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _socketColorInput('Warp', 'Warp Texture'),
+          _floatInput(
+            'intensity',
+            'Intensity',
+            defaultValue: 1.0,
+            min: -4,
+            max: 4,
+            step: 0.05,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.waterfall_chart_outlined,
+      accentColor: _color('#7ED8F6'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/warp.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'warpdirectional_node',
+        label: 'Warp Directional',
+        description: 'Warps the main texture using scalar direction and warp input.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _socketColorInput('Warp', 'Warp Texture'),
+          _floatInput(
+            'intensity',
+            'Intensity',
+            defaultValue: 1.0,
+            min: -4,
+            max: 4,
+            step: 0.05,
+          ),
+          _floatInput(
+            'angle',
+            'Angle',
+            defaultValue: 0.0,
+            min: -6.283185307179586,
+            max: 6.283185307179586,
+            step: 0.05,
+            valueUnit: GraphValueUnit.rotation,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.explore_outlined,
+      accentColor: _color('#75D7B2'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/warpdirectional.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'normals_node',
+        label: 'Normals',
+        description: 'Builds a normal map from a height-like main texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput(
+            'intensity',
+            'Intensity',
+            defaultValue: 1.0,
+            min: 0.01,
+            max: 16,
+            step: 0.05,
+          ),
+          _boolInput('directx', 'DirectX Green', defaultValue: false),
+          _floatInput(
+            'reduce',
+            'Noise Reduce',
+            defaultValue: 0.004,
+            min: 0,
+            max: 1,
+            step: 0.001,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.landscape_outlined,
+      accentColor: _color('#8FD98E'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/normals.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'emboss_node',
+        label: 'Emboss',
+        description: 'Embosses the main texture using a synthetic light direction.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _floatInput(
+            'azimuth',
+            'Azimuth',
+            defaultValue: 0.0,
+            min: -6.283185307179586,
+            max: 6.283185307179586,
+            step: 0.05,
+            valueUnit: GraphValueUnit.rotation,
+          ),
+          _floatInput(
+            'elevation',
+            'Elevation',
+            defaultValue: 1.0,
+            min: -1.5707963267948966,
+            max: 1.5707963267948966,
+            step: 0.05,
+            valueUnit: GraphValueUnit.rotation,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.texture_outlined,
+      accentColor: _color('#F1A673'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/emboss.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'fx_node',
+        label: 'FX Blend',
+        description: 'Applies the legacy two-input FX blend modes.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _socketColorInput('Background', 'Background'),
+          _enumInput(
+            'blendMode',
+            'Blend Mode',
+            defaultValue: 0,
+            options: _fxBlendModes,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.auto_awesome_outlined,
+      accentColor: _color('#B88CFF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/fx.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'gradientmap_node',
+        label: 'Gradient Map',
+        description: 'Maps the main texture through a LUT texture and optional mask.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _socketColorInput('ColorLUT', 'Color LUT'),
+          _socketColorInput('Mask', 'Mask'),
+          _boolInput('useMask', 'Use Mask', defaultValue: false),
+          _boolInput('horizontal', 'Horizontal LUT', defaultValue: true),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.gradient_outlined,
+      accentColor: _color('#FF8FC6'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/gradientmap.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'curve_node',
+        label: 'Curve',
+        description: 'Applies a generated RGB curve LUT to the main texture.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _curveDescriptorInput('curve', 'Curve', bindingKey: 'CurveLUT'),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.timeline_outlined,
+      accentColor: _color('#8FA8FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/curve.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'occlusion_node',
+        label: 'Occlusion',
+        description: 'Combines a blurred occlusion texture with the original input.',
+        properties: [
+          _socketColorInput('MainTex', 'Blurred Texture'),
+          _socketColorInput('Original', 'Original'),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.layers_outlined,
+      accentColor: _color('#A9BE7A'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/occlusion.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'transform_node',
+        label: 'Transform',
+        description: 'Transforms texture coordinates with matrix controls.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _float3x3Input('rotation', 'Rotation Matrix', defaultValue: _identityMatrix3()),
+          _float3x3Input('scale', 'Scale Matrix', defaultValue: _identityMatrix3()),
+          _float3Input(
+            'translation',
+            'Translation',
+            defaultValue: vmath.Vector3.zero(),
+            valueUnit: GraphValueUnit.position,
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.open_in_full_outlined,
+      accentColor: _color('#F7C56F'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/transform.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'bloom_node',
+        label: 'Bloom',
+        description: 'Combines the main texture with a bloom input.',
+        properties: [
+          _socketColorInput('MainTex', 'Main Texture'),
+          _socketColorInput('Bloom', 'Bloom'),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.wb_twilight_outlined,
+      accentColor: _color('#FFD37D'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/bloom.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'uv_node',
+        label: 'UV',
+        description: 'Outputs the Afro UV test color.',
+        properties: [_outputColorProperty()],
+      ),
+      icon: Icons.grid_on_outlined,
+      accentColor: _color('#52CFF5'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/uv.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
         id: 'curve_demo_node',
         label: 'Curve Demo',
         description: 'Exposes a multi-channel bezier color curve editor.',
@@ -498,6 +1001,8 @@ class MaterialGraphCatalog {
         return GraphValueData.float3(asVector3(definition.defaultValue));
       case GraphValueType.float4:
         return GraphValueData.float4(asVector4(definition.defaultValue));
+      case GraphValueType.float3x3:
+        return GraphValueData.float3x3(asFloat3x3(definition.defaultValue));
       case GraphValueType.stringValue:
         return GraphValueData.stringValue(definition.defaultValue as String);
       case GraphValueType.boolean:
@@ -519,4 +1024,209 @@ class MaterialGraphCatalog {
   static vmath.Vector4 _white() => vmath.Vector4(1, 1, 1, 1);
 
   static vmath.Vector4 _black() => vmath.Vector4.zero();
+
+  static List<double> _identityMatrix3() => const <double>[
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+  ];
+
+  static GraphPropertyDefinition _socketColorInput(String key, String label) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: true,
+      valueType: GraphValueType.float4,
+      valueUnit: GraphValueUnit.color,
+      defaultValue: _white(),
+    );
+  }
+
+  static GraphPropertyDefinition _outputColorProperty() {
+    return GraphPropertyDefinition(
+      key: '_output',
+      label: 'Output',
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.output,
+      socket: true,
+      valueType: GraphValueType.float4,
+      valueUnit: GraphValueUnit.color,
+      defaultValue: _black(),
+    );
+  }
+
+  static GraphPropertyDefinition _floatInput(
+    String key,
+    String label, {
+    required double defaultValue,
+    GraphValueUnit valueUnit = GraphValueUnit.none,
+    double? min,
+    double? max,
+    double? step,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.float,
+      valueUnit: valueUnit,
+      defaultValue: defaultValue,
+      min: min,
+      max: max,
+      step: step,
+    );
+  }
+
+  static GraphPropertyDefinition _float2Input(
+    String key,
+    String label, {
+    required vmath.Vector2 defaultValue,
+    GraphValueUnit valueUnit = GraphValueUnit.none,
+    double? min,
+    double? max,
+    double? step,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.float2,
+      valueUnit: valueUnit,
+      defaultValue: defaultValue,
+      min: min,
+      max: max,
+      step: step,
+    );
+  }
+
+  static GraphPropertyDefinition _float3Input(
+    String key,
+    String label, {
+    required vmath.Vector3 defaultValue,
+    GraphValueUnit valueUnit = GraphValueUnit.none,
+    double? min,
+    double? max,
+    double? step,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.float3,
+      valueUnit: valueUnit,
+      defaultValue: defaultValue,
+      min: min,
+      max: max,
+      step: step,
+    );
+  }
+
+  static GraphPropertyDefinition _float4Input(
+    String key,
+    String label, {
+    required vmath.Vector4 defaultValue,
+    GraphValueUnit valueUnit = GraphValueUnit.none,
+    double? min,
+    double? max,
+    double? step,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.float4,
+      valueUnit: valueUnit,
+      defaultValue: defaultValue,
+      min: min,
+      max: max,
+      step: step,
+    );
+  }
+
+  static GraphPropertyDefinition _float3x3Input(
+    String key,
+    String label, {
+    required List<double> defaultValue,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.float3x3,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: defaultValue,
+    );
+  }
+
+  static GraphPropertyDefinition _boolInput(
+    String key,
+    String label, {
+    required bool defaultValue,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.boolean,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: defaultValue,
+    );
+  }
+
+  static GraphPropertyDefinition _enumInput(
+    String key,
+    String label, {
+    required int defaultValue,
+    required List<EnumChoiceOption> options,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Empty desc',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.enumChoice,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: defaultValue,
+      enumOptions: options,
+    );
+  }
+
+  static GraphPropertyDefinition _curveDescriptorInput(
+    String key,
+    String label, {
+    required String bindingKey,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Editable luminance and RGBA bezier response curves.',
+      propertyType: GraphPropertyType.descriptor,
+      socket: false,
+      valueType: GraphValueType.colorBezierCurve,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: GraphColorCurveData.identity(),
+      runtimeTextureBindingKey: bindingKey,
+    );
+  }
 }

@@ -139,6 +139,51 @@ void main() {
       isTrue,
     );
   });
+
+  test('catalog exposes Afro fullscreen expansion nodes with expected contracts', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final levels = catalog.definitionById('levels_node');
+    final curve = catalog.definitionById('curve_node');
+    final transform = catalog.definitionById('transform_node');
+    final gradientMap = catalog.definitionById('gradientmap_node');
+
+    expect(levels.runtime.shaderAssetId, 'material/levels.frag');
+    expect(levels.properties.map((property) => property.key), [
+      'MainTex',
+      'minValues',
+      'maxValues',
+      'midValues',
+      'value',
+      '_output',
+    ]);
+
+    expect(
+      curve.propertyDefinition('curve').runtimeTextureBindingKey,
+      'CurveLUT',
+    );
+    expect(
+      curve.propertyDefinition('curve').defaultValue,
+      isA<GraphColorCurveData>(),
+    );
+
+    expect(
+      transform.propertyDefinition('rotation').valueType,
+      GraphValueType.float3x3,
+    );
+    expect(
+      transform.propertyDefinition('translation').valueType,
+      GraphValueType.float3,
+    );
+
+    expect(gradientMap.properties.map((property) => property.key), [
+      'MainTex',
+      'ColorLUT',
+      'Mask',
+      'useMask',
+      'horizontal',
+      '_output',
+    ]);
+  });
 }
 
 List<double> _vector4Values(Vector4 value) => [

@@ -10,6 +10,7 @@ enum GraphValueType {
   float2,
   float3,
   float4,
+  float3x3,
   stringValue,
   boolean,
   enumChoice,
@@ -499,6 +500,7 @@ class GraphPropertyDefinition {
     this.max,
     this.step,
     this.enumOptions = const <EnumChoiceOption>[],
+    this.runtimeTextureBindingKey,
   });
 
   final String key;
@@ -514,6 +516,7 @@ class GraphPropertyDefinition {
   final num? max;
   final double? step;
   final List<EnumChoiceOption> enumOptions;
+  final String? runtimeTextureBindingKey;
 
   bool get isSocket => socket;
 
@@ -562,6 +565,17 @@ Vector2 asVector2(Object value) => (value as Vector2).clone();
 Vector3 asVector3(Object value) => (value as Vector3).clone();
 
 Vector4 asVector4(Object value) => (value as Vector4).clone();
+
+List<double> asFloat3x3(Object value) => List<double>.unmodifiable(
+  List<double>.generate(9, (index) {
+    final source = value is List ? value : const <dynamic>[];
+    if (index >= source.length) {
+      return index % 4 == 0 ? 1.0 : 0.0;
+    }
+    final entry = source[index];
+    return entry is num ? entry.toDouble() : 0.0;
+  }),
+);
 
 GraphColorCurveData asColorCurve(Object value) =>
     (value as GraphColorCurveData).clone();

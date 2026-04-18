@@ -106,7 +106,8 @@ class MaterialGraphCompiler {
       final isTextureInput =
           propertyDefinition.socket &&
           propertyDefinition.propertyType == GraphPropertyType.input;
-      if (isTextureInput) {
+      final generatedTextureBindingKey = propertyDefinition.runtimeTextureBindingKey;
+      if (isTextureInput || generatedTextureBindingKey != null) {
         final link = linkByInputPropertyId[property.id];
         if (link != null) {
           upstreamNodeIds.add(link.fromNodeId);
@@ -115,7 +116,7 @@ class MaterialGraphCompiler {
           MaterialCompiledTextureInput(
             propertyId: property.id,
             propertyKey: property.definitionKey,
-            bindingKey: bindingKey,
+            bindingKey: generatedTextureBindingKey ?? bindingKey,
             valueType: propertyDefinition.valueType,
             fallbackValue: property.value.deepCopy(),
             sourceNodeId: link?.fromNodeId,

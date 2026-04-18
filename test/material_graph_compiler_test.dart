@@ -1,4 +1,7 @@
+import 'package:eyecandy/features/graph/models/graph_models.dart';
+import 'package:eyecandy/features/graph/models/graph_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vector_math/vector_math.dart' as vmath;
 
 import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
@@ -39,4 +42,73 @@ void main() {
       isTrue,
     );
   });
+
+  test('compiler preserves generated LUT textures and matrix parameters', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final levels = catalog.instantiateNode(
+      definitionId: 'levels_node',
+      position: vmath.Vector2.zero(),
+    );
+    final curve = catalog.instantiateNode(
+      definitionId: 'curve_node',
+      position: vmath.Vector2(320, 0),
+    );
+    final transform = catalog.instantiateNode(
+      definitionId: 'transform_node',
+      position: vmath.Vector2(640, 0),
+    );
+    final graph = GraphDocument(
+      id: 'graph-1',
+      name: 'Expanded Graph',
+      nodes: [levels, curve, transform],
+      links: [
+        _connect(fromNode: levels, fromKey: '_output', toNode: curve, toKey: 'MainTex'),
+        _connect(fromNode: curve, fromKey: '_output', toNode: transform, toKey: 'MainTex'),
+      ],
+    );
+
+    final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
+    final curvePass = compiled.passForNode(curve.id)!;
+    final transformPass = compiled.passForNode(transform.id)!;
+
+    expect(curvePass.shaderAssetId, 'material/curve.frag');
+    expect(curvePass.textureInputs.map((input) => input.bindingKey), [
+      'MainTex',
+      'CurveLUT',
+    ]);
+    expect(curvePass.textureInputs.first.isConnected, isTrue);
+    expect(curvePass.textureInputs.last.isConnected, isFalse);
+    expect(curvePass.textureInputs.last.valueType, GraphValueType.colorBezierCurve);
+
+    final rotationBinding = transformPass.parameterBindings.firstWhere(
+      (binding) => binding.bindingKey == 'rotation',
+    );
+    expect(rotationBinding.valueType, GraphValueType.float3x3);
+    expect(rotationBinding.value.asFloat3x3(), [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      1.0,
+    ]);
+  });
+}
+
+GraphLinkDocument _connect({
+  required GraphNodeDocument fromNode,
+  required String fromKey,
+  required GraphNodeDocument toNode,
+  required String toKey,
+}) {
+  return GraphLinkDocument(
+    id: '${fromNode.id}:$fromKey->$toKey',
+    fromNodeId: fromNode.id,
+    fromPropertyId: fromNode.propertyByDefinitionKey(fromKey)!.id,
+    toNodeId: toNode.id,
+    toPropertyId: toNode.propertyByDefinitionKey(toKey)!.id,
+  );
 }
