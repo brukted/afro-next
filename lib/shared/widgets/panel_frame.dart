@@ -25,7 +25,7 @@ class PanelFrame extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(12, 10, 8, 9),
+            padding: const EdgeInsets.fromLTRB(10, 8, 6, 7),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
@@ -48,7 +48,7 @@ class PanelFrame extends StatelessWidget {
                         ),
                       ),
                       if (subtitle != null) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           subtitle!,
                           style: theme.textTheme.bodySmall?.copyWith(

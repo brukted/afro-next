@@ -39,7 +39,8 @@ class WorkspaceController extends ChangeNotifier {
   final WorkspaceFileStore _fileStore;
 
   WorkspaceProjectDocument? _workspace;
-  String? _activeResourceId;
+  String? _selectedResourceId;
+  String? _openedResourceId;
   String? _currentFilePath;
   bool _initialized = false;
   bool _isDirty = false;
@@ -55,23 +56,46 @@ class WorkspaceController extends ChangeNotifier {
 
   WorkspaceProjectDocument get workspace => _workspace!;
 
-  String? get activeResourceId => _activeResourceId;
+  String? get selectedResourceId => _selectedResourceId;
+
+  String? get openedResourceId => _openedResourceId;
 
   String? get currentFilePath => _currentFilePath;
 
-  WorkspaceResourceEntry? get activeResource {
-    if (_workspace == null || _activeResourceId == null) {
+  WorkspaceResourceEntry? resourceById(String resourceId) {
+    if (_workspace == null) {
       return null;
     }
 
     return workspace.resources.firstWhereOrNull(
-      (entry) => entry.id == _activeResourceId,
+      (entry) => entry.id == resourceId,
     );
   }
 
-  MaterialGraphResourceDocument? get activeMaterialGraphDocument {
-    final resource = activeResource;
-    if (resource == null || resource.kind != WorkspaceResourceKind.materialGraph) {
+  WorkspaceResourceEntry? get selectedResource {
+    if (_workspace == null || _selectedResourceId == null) {
+      return null;
+    }
+
+    return workspace.resources.firstWhereOrNull(
+      (entry) => entry.id == _selectedResourceId,
+    );
+  }
+
+  WorkspaceResourceEntry? get openedResource {
+    if (_workspace == null || _openedResourceId == null) {
+      return null;
+    }
+
+    return workspace.resources.firstWhereOrNull(
+      (entry) => entry.id == _openedResourceId,
+    );
+  }
+
+  MaterialGraphResourceDocument? get openedMaterialGraphDocument {
+    final resource = openedResource;
+    if (resource == null ||
+        resource.kind != WorkspaceResourceKind.materialGraph) {
       return null;
     }
 
@@ -80,8 +104,8 @@ class WorkspaceController extends ChangeNotifier {
     );
   }
 
-  MathGraphResourceDocument? get activeMathGraphDocument {
-    final resource = activeResource;
+  MathGraphResourceDocument? get openedMathGraphDocument {
+    final resource = openedResource;
     if (resource == null || resource.kind != WorkspaceResourceKind.mathGraph) {
       return null;
     }
@@ -97,9 +121,12 @@ class WorkspaceController extends ChangeNotifier {
     }
 
     _workspace = _createInitialWorkspace();
-    _activeResourceId = workspace.resources
-        .firstWhere((entry) => entry.kind == WorkspaceResourceKind.materialGraph)
+    _selectedResourceId = workspace.resources
+        .firstWhere(
+          (entry) => entry.kind == WorkspaceResourceKind.materialGraph,
+        )
         .id;
+    _openedResourceId = _selectedResourceId;
     _initialized = true;
     _logger.info(
       'Workspace initialized with ${workspace.resources.length} resources.',
@@ -113,9 +140,12 @@ class WorkspaceController extends ChangeNotifier {
     }
 
     _workspace = _createInitialWorkspace();
-    _activeResourceId = workspace.resources
-        .firstWhere((entry) => entry.kind == WorkspaceResourceKind.materialGraph)
+    _selectedResourceId = workspace.resources
+        .firstWhere(
+          (entry) => entry.kind == WorkspaceResourceKind.materialGraph,
+        )
         .id;
+    _openedResourceId = _selectedResourceId;
     _initialized = true;
   }
 
@@ -128,7 +158,8 @@ class WorkspaceController extends ChangeNotifier {
     final loadedWorkspace = await _fileStore.load(path);
     _workspace = loadedWorkspace;
     _currentFilePath = path;
-    _activeResourceId = _pickInitialResource(loadedWorkspace);
+    _selectedResourceId = _pickInitialResource(loadedWorkspace);
+    _openedResourceId = _selectedResourceId;
     _isDirty = false;
     await _preferences.rememberRecentFile(path);
     _logger.info('Opened workspace file: $path');
@@ -167,12 +198,39 @@ class WorkspaceController extends ChangeNotifier {
   }
 
   void selectResource(String resourceId) {
-    if (_activeResourceId == resourceId) {
+    if (_selectedResourceId == resourceId) {
       return;
     }
 
-    _activeResourceId = resourceId;
+    _selectedResourceId = resourceId;
     notifyListeners();
+  }
+
+  void openResource(String resourceId) {
+    final resource = resourceById(resourceId);
+    if (resource == null) {
+      return;
+    }
+
+    if (_selectedResourceId == resource.id && _openedResourceId == resource.id) {
+      return;
+    }
+
+    _selectedResourceId = resource.id;
+    _openedResourceId = resource.id;
+    notifyListeners();
+  }
+
+  List<String> ancestorIdsOf(String resourceId) {
+    final ancestors = <String>[];
+    var current = resourceById(resourceId);
+    while (current?.parentId != null) {
+      final parentId = current!.parentId!;
+      ancestors.add(parentId);
+      current = resourceById(parentId);
+    }
+
+    return ancestors;
   }
 
   List<WorkspaceResourceEntry> childrenOf(String? parentId) {
@@ -193,20 +251,32 @@ class WorkspaceController extends ChangeNotifier {
   }
 
   void createFolder() {
+    createFolderAt(_creationParentId());
+  }
+
+  void createMaterialGraph() {
+    createMaterialGraphAt(_creationParentId());
+  }
+
+  void createMathGraph() {
+    createMathGraphAt(_creationParentId());
+  }
+
+  void createFolderAt(String? parentId) {
     final folder = WorkspaceResourceEntry(
       id: _idFactory.next(),
       name: _nextName('Folder', WorkspaceResourceKind.folder),
       kind: WorkspaceResourceKind.folder,
-      parentId: _creationParentId(),
+      parentId: _normalizeParentId(parentId),
     );
 
-    _activeResourceId = folder.id;
+    _selectedResourceId = folder.id;
     _replaceWorkspace(
       workspace.copyWith(resources: [...workspace.resources, folder]),
     );
   }
 
-  void createMaterialGraph() {
+  void createMaterialGraphAt(String? parentId) {
     final graphName = _nextName(
       'Material Graph',
       WorkspaceResourceKind.materialGraph,
@@ -219,11 +289,12 @@ class WorkspaceController extends ChangeNotifier {
       id: _idFactory.next(),
       name: graphName,
       kind: WorkspaceResourceKind.materialGraph,
-      parentId: _creationParentId(),
+      parentId: _normalizeParentId(parentId),
       documentId: document.id,
     );
 
-    _activeResourceId = resource.id;
+    _selectedResourceId = resource.id;
+    _openedResourceId = resource.id;
     _replaceWorkspace(
       workspace.copyWith(
         resources: [...workspace.resources, resource],
@@ -232,7 +303,7 @@ class WorkspaceController extends ChangeNotifier {
     );
   }
 
-  void createMathGraph() {
+  void createMathGraphAt(String? parentId) {
     final graphName = _nextName('Math Graph', WorkspaceResourceKind.mathGraph);
     final document = MathGraphResourceDocument(
       id: _idFactory.next(),
@@ -242,11 +313,12 @@ class WorkspaceController extends ChangeNotifier {
       id: _idFactory.next(),
       name: graphName,
       kind: WorkspaceResourceKind.mathGraph,
-      parentId: _creationParentId(),
+      parentId: _normalizeParentId(parentId),
       documentId: document.id,
     );
 
-    _activeResourceId = resource.id;
+    _selectedResourceId = resource.id;
+    _openedResourceId = resource.id;
     _replaceWorkspace(
       workspace.copyWith(
         resources: [...workspace.resources, resource],
@@ -255,8 +327,123 @@ class WorkspaceController extends ChangeNotifier {
     );
   }
 
+  bool canRenameResource(String resourceId) =>
+      resourceId != workspace.rootFolderId;
+
+  bool canDeleteResource(String resourceId) =>
+      resourceId != workspace.rootFolderId;
+
+  void renameResource({required String resourceId, required String nextName}) {
+    final normalizedName = nextName.trim();
+    if (normalizedName.isEmpty) {
+      return;
+    }
+
+    final resource = resourceById(resourceId);
+    if (resource == null || !canRenameResource(resourceId)) {
+      return;
+    }
+
+    final resources = workspace.resources
+        .map(
+          (entry) => entry.id == resourceId
+              ? entry.copyWith(name: normalizedName)
+              : entry,
+        )
+        .toList(growable: false);
+
+    var materialGraphs = workspace.materialGraphs;
+    var mathGraphs = workspace.mathGraphs;
+    if (resource.kind == WorkspaceResourceKind.materialGraph &&
+        resource.documentId != null) {
+      materialGraphs = workspace.materialGraphs
+          .map(
+            (entry) => entry.id == resource.documentId
+                ? entry.copyWith(
+                    graph: entry.graph.copyWith(name: normalizedName),
+                  )
+                : entry,
+          )
+          .toList(growable: false);
+    }
+    if (resource.kind == WorkspaceResourceKind.mathGraph &&
+        resource.documentId != null) {
+      mathGraphs = workspace.mathGraphs
+          .map(
+            (entry) => entry.id == resource.documentId
+                ? entry.copyWith(
+                    graph: entry.graph.copyWith(name: normalizedName),
+                  )
+                : entry,
+          )
+          .toList(growable: false);
+    }
+
+    _replaceWorkspace(
+      workspace.copyWith(
+        resources: resources,
+        materialGraphs: materialGraphs,
+        mathGraphs: mathGraphs,
+      ),
+    );
+  }
+
+  void deleteResource(String resourceId) {
+    if (!canDeleteResource(resourceId)) {
+      return;
+    }
+
+    final resource = resourceById(resourceId);
+    if (resource == null) {
+      return;
+    }
+
+    final removedIds = _collectResourceIds(resourceId);
+    final removedResources = workspace.resources
+        .where((entry) => removedIds.contains(entry.id))
+        .toList(growable: false);
+    final removedMaterialDocumentIds = removedResources
+        .where((entry) => entry.kind == WorkspaceResourceKind.materialGraph)
+        .map((entry) => entry.documentId)
+        .nonNulls
+        .toSet();
+    final removedMathDocumentIds = removedResources
+        .where((entry) => entry.kind == WorkspaceResourceKind.mathGraph)
+        .map((entry) => entry.documentId)
+        .nonNulls
+        .toSet();
+
+    final updatedWorkspace = workspace.copyWith(
+      resources: workspace.resources
+          .where((entry) => !removedIds.contains(entry.id))
+          .toList(growable: false),
+      materialGraphs: workspace.materialGraphs
+          .where((entry) => !removedMaterialDocumentIds.contains(entry.id))
+          .toList(growable: false),
+      mathGraphs: workspace.mathGraphs
+          .where((entry) => !removedMathDocumentIds.contains(entry.id))
+          .toList(growable: false),
+    );
+
+    _workspace = updatedWorkspace;
+    if (_selectedResourceId != null && removedIds.contains(_selectedResourceId)) {
+      _selectedResourceId = _pickFallbackResource(
+        updatedWorkspace,
+        preferredParentId: resource.parentId,
+      );
+    }
+    if (_openedResourceId != null && removedIds.contains(_openedResourceId)) {
+      _openedResourceId = _pickFallbackResource(
+        updatedWorkspace,
+        preferredParentId: resource.parentId,
+      );
+    }
+    _isDirty = true;
+    notifyListeners();
+  }
+
   void updateActiveMaterialGraph(GraphDocument graph) {
-    final resource = activeResource;
+    final resource = openedResource;
     if (resource == null || resource.documentId == null) {
       return;
     }
@@ -297,7 +484,7 @@ class WorkspaceController extends ChangeNotifier {
   }
 
   String _creationParentId() {
-    final resource = activeResource;
+    final resource = selectedResource;
     if (resource == null) {
       return workspace.rootFolderId;
     }
@@ -307,6 +494,23 @@ class WorkspaceController extends ChangeNotifier {
     }
 
     return resource.parentId ?? workspace.rootFolderId;
+  }
+
+  String _normalizeParentId(String? parentId) {
+    if (parentId == null) {
+      return workspace.rootFolderId;
+    }
+
+    final parent = resourceById(parentId);
+    if (parent == null) {
+      return workspace.rootFolderId;
+    }
+
+    if (parent.kind == WorkspaceResourceKind.folder) {
+      return parent.id;
+    }
+
+    return parent.parentId ?? workspace.rootFolderId;
   }
 
   String _nextName(String base, WorkspaceResourceKind kind) {
@@ -334,6 +538,42 @@ class WorkspaceController extends ChangeNotifier {
         workspace.resources
             .firstWhere((entry) => entry.id != workspace.rootFolderId)
             .id;
+  }
+
+  Set<String> _collectResourceIds(String resourceId) {
+    final ids = <String>{resourceId};
+    final pending = <String>[resourceId];
+
+    while (pending.isNotEmpty) {
+      final currentId = pending.removeLast();
+      final childIds = workspace.resources
+          .where((entry) => entry.parentId == currentId)
+          .map((entry) => entry.id)
+          .where(ids.add)
+          .toList(growable: false);
+      pending.addAll(childIds);
+    }
+
+    return ids;
+  }
+
+  String? _pickFallbackResource(
+    WorkspaceProjectDocument workspace, {
+    String? preferredParentId,
+  }) {
+    if (preferredParentId != null &&
+        workspace.resources.any((entry) => entry.id == preferredParentId)) {
+      return preferredParentId;
+    }
+
+    return workspace.resources
+            .firstWhereOrNull(
+              (entry) => entry.kind == WorkspaceResourceKind.materialGraph,
+            )
+            ?.id ??
+        workspace.resources
+            .firstWhereOrNull((entry) => entry.id != workspace.rootFolderId)
+            ?.id;
   }
 
   WorkspaceProjectDocument _createInitialWorkspace() {
@@ -392,7 +632,10 @@ class WorkspaceController extends ChangeNotifier {
       mathGraphs: [
         MathGraphResourceDocument(
           id: mathDocumentId,
-          graph: GraphDocument.empty(id: _idFactory.next(), name: 'Math Graph 1'),
+          graph: GraphDocument.empty(
+            id: _idFactory.next(),
+            name: 'Math Graph 1',
+          ),
         ),
       ],
     );

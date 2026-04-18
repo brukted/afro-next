@@ -62,7 +62,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
           );
         }
 
-        final resource = widget.workspaceController.activeResource;
+        final resource = widget.workspaceController.openedResource;
 
         return Scaffold(
           body: SafeArea(
@@ -123,8 +123,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
     return const _PlaceholderPanel(
       title: 'Editor',
-      subtitle: 'No resource selected',
-      message: 'Select a resource from the outliner to open it here.',
+      subtitle: 'No resource open',
+      message: 'Select a resource in the outliner, then use Open from the context menu to load it here.',
     );
   }
 
@@ -159,7 +159,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       return;
     }
 
-    final activeMaterial = widget.workspaceController.activeMaterialGraphDocument;
+    final activeMaterial = widget.workspaceController.openedMaterialGraphDocument;
     if (activeMaterial == null) {
       if (widget.materialGraphController.hasGraph) {
         widget.materialGraphController.clearGraph();
@@ -189,7 +189,7 @@ class _WorkspaceToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final resource = workspaceController.activeResource;
+    final resource = workspaceController.openedResource;
 
     return DecoratedBox(
       decoration: BoxDecoration(

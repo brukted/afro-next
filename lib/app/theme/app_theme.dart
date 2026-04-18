@@ -22,8 +22,10 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.35)),
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.35),
+          ),
         ),
       ),
       appBarTheme: AppBarTheme(
@@ -36,14 +38,24 @@ class AppTheme {
         backgroundColor: scheme.surfaceContainerHighest,
         selectedColor: scheme.primaryContainer,
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF151823),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(9),
           borderSide: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: const Color(0xFF181B24),
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.28),
+          ),
         ),
       ),
       sliderTheme: SliderThemeData(
@@ -51,6 +63,7 @@ class AppTheme {
         thumbColor: scheme.primary,
         inactiveTrackColor: scheme.surfaceContainerHighest,
       ),
+      visualDensity: VisualDensity.compact,
     );
   }
 }
