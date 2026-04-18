@@ -336,7 +336,7 @@ class _EditablePropertyField extends StatelessWidget {
           ],
         ),
         GraphValueType.enumChoice => DropdownButtonFormField<int>(
-          value: property.value as int,
+          initialValue: property.value as int,
           isDense: true,
           isExpanded: true,
           itemHeight: kMinInteractiveDimension,
