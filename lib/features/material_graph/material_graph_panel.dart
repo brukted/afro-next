@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
 
@@ -12,16 +14,22 @@ import 'material_graph_controller.dart';
 import 'material_node_definition.dart';
 
 class MaterialGraphPanel extends StatefulWidget {
-  const MaterialGraphPanel({
-    super.key,
-    required this.controller,
-  });
+  const MaterialGraphPanel({super.key, required this.controller});
 
   final MaterialGraphController controller;
 
   @override
   State<MaterialGraphPanel> createState() => _MaterialGraphPanelState();
 }
+
+final double _materialNodePreviewSurfaceExtent =
+    nodeEditorNodeWidth - nodeEditorBodyPadding.horizontal;
+const double _materialNodePreviewFooterSpacing = 6;
+const double _materialNodePreviewFooterHeight = 28;
+final double _materialNodePreviewBodyHeight =
+    _materialNodePreviewSurfaceExtent +
+    _materialNodePreviewFooterSpacing +
+    _materialNodePreviewFooterHeight;
 
 class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
   late final NodeEditorViewportController _viewportController;
@@ -62,10 +70,12 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
           tooltip: 'Add node',
           onSelected: _controller.addNode,
           itemBuilder: (context) => _controller.nodeDefinitions
-              .map((definition) => PopupMenuItem<String>(
-                    value: definition.id,
-                    child: _NodeDefinitionLabel(definition: definition),
-                  ))
+              .map(
+                (definition) => PopupMenuItem<String>(
+                  value: definition.id,
+                  child: _NodeDefinitionLabel(definition: definition),
+                ),
+              )
               .toList(growable: false),
           child: const Padding(
             padding: EdgeInsets.symmetric(horizontal: 6),
@@ -80,10 +90,9 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .outlineVariant
-                      .withValues(alpha: 0.28),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withValues(alpha: 0.28),
                 ),
               ),
             ),
@@ -125,7 +134,7 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                   constraints.maxHeight,
                 );
                 final nodes = _buildNodeViewModels();
-                return NodeEditorCanvas(
+                return NodeEditorCanvas<PreviewRenderTarget?>(
                   viewportController: _viewportController,
                   nodes: nodes,
                   links: graph.links,
@@ -139,7 +148,8 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                       propertyId: propertyId,
                     );
                   },
-                  onCancelPendingConnection: _controller.cancelPendingConnection,
+                  onCancelPendingConnection:
+                      _controller.cancelPendingConnection,
                   onRequestCanvasMenu: (globalPosition, scenePosition) {
                     return _showCanvasMenu(
                       context: context,
@@ -157,12 +167,9 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                     );
                   },
                   buildNodeBody: (context, nodeViewModel) {
-                    final preview =
-                        nodeViewModel.bodyData as PreviewRenderTarget?;
-                    return _MaterialNodeBody(
-                      accentColor: nodeViewModel.accentColor,
+                    return MaterialNodePreviewCard(
                       title: nodeViewModel.title,
-                      preview: preview,
+                      preview: nodeViewModel.bodyData,
                     );
                   },
                 );
@@ -174,39 +181,41 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
     );
   }
 
-  List<NodeEditorNodeViewModel> _buildNodeViewModels() {
-    return _controller.graph.nodes.map((node) {
-      final definition = _controller.definitionForNode(node);
-      final accentColor = Vector4ColorAdapter.toFlutterColor(
-        definition.accentColor,
-      );
-      final bindings = _controller.boundPropertiesForNode(node);
+  List<NodeEditorNodeViewModel<PreviewRenderTarget?>> _buildNodeViewModels() {
+    return _controller.graph.nodes
+        .map((node) {
+          final definition = _controller.definitionForNode(node);
+          final accentColor = Vector4ColorAdapter.toFlutterColor(
+            definition.accentColor,
+          );
+          final bindings = _controller.boundPropertiesForNode(node);
 
-      return NodeEditorNodeViewModel(
-        id: node.id,
-        title: node.name,
-        position: node.position,
-        icon: definition.icon,
-        accentColor: accentColor,
-        bodyHeight: 84,
-        bodyData: _controller.previewForNode(node.id),
-        sockets: bindings
-            .where((binding) => binding.definition.isSocket)
-            .map(
-              (binding) => NodeEditorSocketViewModel(
-                id: binding.id,
-                label: binding.label,
-                direction: binding.definition.socketDirection!,
-                isConnected:
-                    binding.definition.socketDirection ==
+          return NodeEditorNodeViewModel<PreviewRenderTarget?>(
+            id: node.id,
+            title: node.name,
+            position: node.position,
+            icon: definition.icon,
+            accentColor: accentColor,
+            bodyHeight: _materialNodePreviewBodyHeight,
+            bodyData: _controller.previewForNode(node.id),
+            sockets: bindings
+                .where((binding) => binding.definition.isSocket)
+                .map(
+                  (binding) => NodeEditorSocketViewModel(
+                    id: binding.id,
+                    label: binding.label,
+                    direction: binding.definition.socketDirection!,
+                    isConnected:
+                        binding.definition.socketDirection ==
                             GraphSocketDirection.input
                         ? _controller.hasIncomingLink(binding.id)
                         : _controller.hasOutgoingLink(binding.id),
-              ),
-            )
-            .toList(growable: false),
-      );
-    }).toList(growable: false);
+                  ),
+                )
+                .toList(growable: false),
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> _showCanvasMenu({
@@ -380,57 +389,182 @@ class _NodeDefinitionLabel extends StatelessWidget {
   }
 }
 
-class _MaterialNodeBody extends StatelessWidget {
-  const _MaterialNodeBody({
-    required this.accentColor,
+class MaterialNodePreviewCard extends StatelessWidget {
+  const MaterialNodePreviewCard({
+    super.key,
     required this.title,
     required this.preview,
+    this.previewTextureBuilder,
   });
 
-  final Color accentColor;
   final String title;
   final PreviewRenderTarget? preview;
+  final Widget Function(BuildContext context, PreviewTextureDescriptor texture)?
+  previewTextureBuilder;
 
   @override
   Widget build(BuildContext context) {
+    final texture = preview?.texture;
+    final hasTexture = preview?.hasTexture ?? false;
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            (preview?.accentColor ?? accentColor).withValues(alpha: 0.78),
-            const Color(0xFF10131B),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFF121720),
         borderRadius: BorderRadius.circular(9),
         border: Border.all(color: Colors.white10),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              preview?.label ?? 'Preview',
-              style: Theme.of(
-                context,
-              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const Spacer(),
-            Text(
-              preview?.diagnostics.firstOrNull ?? title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.78),
+        padding: const EdgeInsets.all(1),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final surfaceHeight = math.max(
+              0.0,
+              constraints.maxHeight -
+                  _materialNodePreviewFooterSpacing -
+                  _materialNodePreviewFooterHeight,
+            );
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  height: surfaceHeight,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: hasTexture && texture != null
+                        ? _LivePreviewSurface(
+                            texture: texture,
+                            previewTextureBuilder: previewTextureBuilder,
+                          )
+                        : ColoredBox(
+                            color: const Color(0xFF171D27),
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Align(
+                                alignment: Alignment.bottomLeft,
+                                child: Text(
+                                  preview?.diagnostics.firstOrNull ?? title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.78,
+                                        ),
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
                   ),
-            ),
-          ],
+                ),
+                const SizedBox(height: _materialNodePreviewFooterSpacing),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.34),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: SizedBox(
+                    height: _materialNodePreviewFooterHeight,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 7),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              preview?.label ?? 'Preview',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          if (preview != null)
+                            Text(
+                              preview!.status.name,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: Colors.white.withValues(alpha: 0.72),
+                                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _LivePreviewSurface extends StatelessWidget {
+  const _LivePreviewSurface({
+    required this.texture,
+    this.previewTextureBuilder,
+  });
+
+  final PreviewTextureDescriptor texture;
+  final Widget Function(BuildContext context, PreviewTextureDescriptor texture)?
+  previewTextureBuilder;
+
+  static const _previewKey = Key('material-node-live-preview');
+
+  @override
+  Widget build(BuildContext context) {
+    final aspectRatio = texture.height == 0
+        ? 1.0
+        : texture.width / texture.height;
+    final textureChild =
+        previewTextureBuilder?.call(context, texture) ??
+        Texture(
+          key: _previewKey,
+          textureId: texture.textureId,
+          filterQuality: FilterQuality.medium,
+        );
+
+    return _AlphaPreviewBackground(
+      child: Center(
+        child: AspectRatio(aspectRatio: aspectRatio, child: textureChild),
+      ),
+    );
+  }
+}
+
+class _AlphaPreviewBackground extends StatelessWidget {
+  const _AlphaPreviewBackground({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _TransparencyCheckerPainter(), child: child);
+  }
+}
+
+class _TransparencyCheckerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const tileSize = 10.0;
+    final lightPaint = Paint()..color = const Color(0xFF3B404C);
+    final darkPaint = Paint()..color = const Color(0xFF242933);
+
+    for (var y = 0.0; y < size.height; y += tileSize) {
+      for (var x = 0.0; x < size.width; x += tileSize) {
+        final isLightTile =
+            ((x / tileSize).floor() + (y / tileSize).floor()).isEven;
+        canvas.drawRect(
+          Rect.fromLTWH(x, y, tileSize, tileSize),
+          isLightTile ? lightPaint : darkPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 extension on List<String> {

@@ -1,5 +1,6 @@
 import '../../features/material_graph/runtime/material_execution_ir.dart';
 import 'material_backend_models.dart';
+import 'material_node_preview_support.dart';
 
 class VulkanMaterialBackendPlanner {
   const VulkanMaterialBackendPlanner();
@@ -17,6 +18,9 @@ class VulkanMaterialBackendPlanner {
     return VulkanMaterialBackendPlan(
       graphId: graph.graphId,
       passes: passes,
+      passesByNodeId: {
+        for (final pass in passes) pass.nodeId: pass,
+      },
       previewTargetIdsByNodeId: {
         for (final pass in passes) pass.nodeId: pass.outputTarget.id,
       },
@@ -28,8 +32,8 @@ class VulkanMaterialBackendPlanner {
     required MaterialCompiledGraph graph,
     required MaterialCompiledNodePass pass,
   }) {
-    final isSupported =
-        pass.executionKind.name == 'fragment' && pass.shaderAssetId != null;
+    final previewSupport = MaterialNodePreviewSupportRegistry.lookup(pass);
+    final isSupported = previewSupport != null;
     final outputUsage = pass.nodeId == graph.defaultOutputNodeId
         ? VulkanImageTargetUsage.finalOutput
         : VulkanImageTargetUsage.preview;

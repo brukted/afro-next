@@ -12,10 +12,10 @@ const double nodeEditorBodyBottomSpacing = 6;
 const double nodeEditorFooterSpacing = 6;
 const EdgeInsets nodeEditorBodyPadding = EdgeInsets.fromLTRB(8, 8, 8, 6);
 
-typedef NodeEditorBodyBuilder =
-    Widget Function(BuildContext context, NodeEditorNodeViewModel node);
+typedef NodeEditorBodyBuilder<T> =
+    Widget Function(BuildContext context, NodeEditorNodeViewModel<T> node);
 
-double estimateNodeEditorNodeHeight(NodeEditorNodeViewModel node) {
+double estimateNodeEditorNodeHeight<T>(NodeEditorNodeViewModel<T> node) {
   return nodeEditorHeaderHeight +
       nodeEditorBodyTopSpacing +
       node.bodyHeight +
@@ -24,7 +24,7 @@ double estimateNodeEditorNodeHeight(NodeEditorNodeViewModel node) {
       nodeEditorFooterSpacing;
 }
 
-Rect estimateNodeEditorNodeRect(NodeEditorNodeViewModel node) {
+Rect estimateNodeEditorNodeRect<T>(NodeEditorNodeViewModel<T> node) {
   return Rect.fromLTWH(
     node.position.x,
     node.position.y,
@@ -47,7 +47,7 @@ class NodeEditorSocketViewModel {
   final bool isConnected;
 }
 
-class NodeEditorNodeViewModel {
+class NodeEditorNodeViewModel<T> {
   const NodeEditorNodeViewModel({
     required this.id,
     required this.title,
@@ -66,5 +66,5 @@ class NodeEditorNodeViewModel {
   final Color accentColor;
   final List<NodeEditorSocketViewModel> sockets;
   final double bodyHeight;
-  final Object? bodyData;
+  final T? bodyData;
 }

@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import '../../features/material_graph/runtime/material_execution_ir.dart';
 import '../bootstrap/vulkan_bootstrap.dart';
 import '../material_backend/material_backend_planner.dart';
@@ -19,11 +17,14 @@ class PlaceholderVulkanRendererFacade implements RendererFacade {
   Future<RendererBootstrapState> bootstrap() => bootstrapper.bootstrap();
 
   @override
-  Map<String, PreviewRenderTarget> renderGraphPreviews({
+  Future<void> dispose() async {}
+
+  @override
+  Future<Map<String, PreviewRenderTarget>> renderGraphPreviews({
     required MaterialCompiledGraph graph,
     required Set<String> dirtyNodeIds,
     required int revision,
-  }) {
+  }) async {
     final plan = _planner.createPlan(graph);
     return {
       for (final pass in plan.passes)
@@ -31,7 +32,9 @@ class PlaceholderVulkanRendererFacade implements RendererFacade {
           id: pass.outputTarget.id,
           kind: PreviewRenderTargetKind.placeholder,
           label: dirtyNodeIds.contains(pass.nodeId) ? 'Dirty preview' : 'Ready',
-          accentColor: _accentColorForNode(graph, pass.nodeId),
+          status: pass.isSupported
+              ? PreviewRenderStatus.ready
+              : PreviewRenderStatus.unsupported,
           diagnostics: <String>[
             'Shader: ${pass.shader?.assetId ?? 'Unassigned'}',
             'Stage: ${pass.shader?.stage.name ?? 'unsupported'}',
@@ -44,6 +47,12 @@ class PlaceholderVulkanRendererFacade implements RendererFacade {
         ),
     };
   }
+
+  @override
+  Future<void> disposeGraph({
+    required String graphId,
+    required Set<String> activeNodeIds,
+  }) async {}
 }
 
 class PreviewOnlyRendererFacade implements RendererFacade {
@@ -59,11 +68,14 @@ class PreviewOnlyRendererFacade implements RendererFacade {
   }
 
   @override
-  Map<String, PreviewRenderTarget> renderGraphPreviews({
+  Future<void> dispose() async {}
+
+  @override
+  Future<Map<String, PreviewRenderTarget>> renderGraphPreviews({
     required MaterialCompiledGraph graph,
     required Set<String> dirtyNodeIds,
     required int revision,
-  }) {
+  }) async {
     final plan = _planner.createPlan(graph);
     return {
       for (final pass in plan.passes)
@@ -71,7 +83,9 @@ class PreviewOnlyRendererFacade implements RendererFacade {
           id: pass.outputTarget.id,
           kind: PreviewRenderTargetKind.placeholder,
           label: 'Preview',
-          accentColor: _accentColorForNode(graph, pass.nodeId),
+          status: pass.isSupported
+              ? PreviewRenderStatus.ready
+              : PreviewRenderStatus.unsupported,
           diagnostics: <String>[
             'Shader: ${pass.shader?.assetId ?? 'Unassigned'}',
             'Target: ${pass.outputTarget.usage.name}',
@@ -81,28 +95,10 @@ class PreviewOnlyRendererFacade implements RendererFacade {
         ),
     };
   }
-}
 
-Color _accentColorForNode(MaterialCompiledGraph graph, String nodeId) {
-  final definitionId = graph.nodePasses
-      .firstWhere((pass) => pass.nodeId == nodeId)
-      .definitionId;
-  return _accentColorForDefinition(definitionId);
-}
-
-Color _accentColorForDefinition(String definitionId) {
-  switch (definitionId) {
-    case 'solid_color_node':
-      return const Color(0xFF3DD6B0);
-    case 'mix_node':
-      return const Color(0xFF7D67FF);
-    case 'channel_select_node':
-      return const Color(0xFFFFB053);
-    case 'circle_node':
-      return const Color(0xFFF06C8F);
-    case 'curve_demo_node':
-      return const Color(0xFF8FA8FF);
-    default:
-      return const Color(0xFF7D67FF);
-  }
+  @override
+  Future<void> disposeGraph({
+    required String graphId,
+    required Set<String> activeNodeIds,
+  }) async {}
 }

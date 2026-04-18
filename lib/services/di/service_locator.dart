@@ -10,8 +10,8 @@ import '../../shared/ids/id_factory.dart';
 import '../../vulkan/bootstrap/vulkan_bootstrap.dart';
 import '../../vulkan/ffi/vulkan_package_probe.dart';
 import '../../vulkan/platform/platform_surface_bridge.dart';
-import '../../vulkan/renderer/placeholder_renderer.dart';
 import '../../vulkan/renderer/renderer_facade.dart';
+import '../../vulkan/renderer/vulkan_preview_renderer.dart';
 import '../filesystem/app_file_picker.dart';
 import '../filesystem/app_paths.dart';
 import '../filesystem/workspace_file_store.dart';
@@ -50,9 +50,10 @@ Future<void> configureServiceLocator({
       ),
     )
     ..registerLazySingleton<RendererFacade>(
-      () => PlaceholderVulkanRendererFacade(
+      () => VulkanPreviewRendererFacade(
         bootstrapper: serviceLocator<VulkanBootstrapper>(),
       ),
+      dispose: (renderer) => renderer.dispose(),
     )
     ..registerLazySingleton<MaterialGraphCompiler>(
       () => MaterialGraphCompiler(
@@ -64,6 +65,7 @@ Future<void> configureServiceLocator({
         compiler: serviceLocator<MaterialGraphCompiler>(),
         renderer: serviceLocator<RendererFacade>(),
       ),
+      dispose: (runtime) => runtime.dispose(),
     )
     ..registerLazySingleton<MaterialGraphController>(
       () => MaterialGraphController(
@@ -71,6 +73,7 @@ Future<void> configureServiceLocator({
         catalog: serviceLocator<MaterialGraphCatalog>(),
         runtime: serviceLocator<MaterialGraphRuntime>(),
       ),
+      dispose: (controller) => controller.dispose(),
     )
     ..registerLazySingleton<WorkspaceController>(
       () => WorkspaceController(
@@ -80,5 +83,6 @@ Future<void> configureServiceLocator({
         logger: serviceLocator<AppLogger>(),
         fileStore: serviceLocator<WorkspaceFileStore>(),
       ),
+      dispose: (controller) => controller.dispose(),
     );
 }

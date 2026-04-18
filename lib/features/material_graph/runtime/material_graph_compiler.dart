@@ -6,16 +6,13 @@ import '../material_graph_catalog.dart';
 import 'material_execution_ir.dart';
 
 class MaterialGraphCompiler {
-  const MaterialGraphCompiler({
-    required MaterialGraphCatalog catalog,
-  }) : _catalog = catalog;
+  const MaterialGraphCompiler({required MaterialGraphCatalog catalog})
+    : _catalog = catalog;
 
   final MaterialGraphCatalog _catalog;
 
   MaterialCompiledGraph compile(GraphDocument graph) {
-    final nodesById = {
-      for (final node in graph.nodes) node.id: node,
-    };
+    final nodesById = {for (final node in graph.nodes) node.id: node};
     final incomingCounts = <String, int>{
       for (final node in graph.nodes) node.id: 0,
     };
@@ -24,8 +21,14 @@ class MaterialGraphCompiler {
     };
 
     for (final link in graph.links) {
-      incomingCounts.update(link.toNodeId, (count) => count + 1, ifAbsent: () => 1);
-      outgoingNodeIds.putIfAbsent(link.fromNodeId, () => <String>[]).add(link.toNodeId);
+      incomingCounts.update(
+        link.toNodeId,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+      outgoingNodeIds
+          .putIfAbsent(link.fromNodeId, () => <String>[])
+          .add(link.toNodeId);
     }
 
     final remainingCounts = Map<String, int>.from(incomingCounts);
@@ -56,12 +59,15 @@ class MaterialGraphCompiler {
     }
 
     final nodePasses = orderedNodeIds
-        .map((nodeId) => _compileNodePass(graph: graph, node: nodesById[nodeId]!))
+        .map(
+          (nodeId) => _compileNodePass(graph: graph, node: nodesById[nodeId]!),
+        )
         .toList(growable: false);
 
     return MaterialCompiledGraph(
       graphId: graph.id,
       nodePasses: nodePasses,
+      nodePassesByNodeId: {for (final pass in nodePasses) pass.nodeId: pass},
       topologicalNodeIds: orderedNodeIds,
       downstreamNodeIdsByNodeId: outgoingNodeIds.map(
         (key, value) => MapEntry(key, List<String>.unmodifiable(value)),
@@ -97,7 +103,8 @@ class MaterialGraphCompiler {
       }
 
       final bindingKey = propertyDefinition.key;
-      final isTextureInput = propertyDefinition.socket &&
+      final isTextureInput =
+          propertyDefinition.socket &&
           propertyDefinition.propertyType == GraphPropertyType.input;
       if (isTextureInput) {
         final link = linkByInputPropertyId[property.id];
@@ -110,6 +117,7 @@ class MaterialGraphCompiler {
             propertyKey: property.definitionKey,
             bindingKey: bindingKey,
             valueType: propertyDefinition.valueType,
+            fallbackValue: property.value.deepCopy(),
             sourceNodeId: link?.fromNodeId,
             sourcePropertyId: link?.fromPropertyId,
           ),
@@ -129,11 +137,13 @@ class MaterialGraphCompiler {
     }
 
     final resolvedOutputDefinition =
-        outputDefinition ?? definition.properties.firstWhere((property) {
+        outputDefinition ??
+        definition.properties.firstWhere((property) {
           return property.propertyType == GraphPropertyType.output;
         });
     final resolvedOutputProperty =
-        outputProperty ?? node.propertyByDefinitionKey(resolvedOutputDefinition.key)!;
+        outputProperty ??
+        node.propertyByDefinitionKey(resolvedOutputDefinition.key)!;
 
     return MaterialCompiledNodePass(
       nodeId: node.id,

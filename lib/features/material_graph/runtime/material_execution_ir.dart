@@ -2,10 +2,7 @@ import '../../graph/models/graph_models.dart';
 import '../../graph/models/graph_schema.dart';
 import '../material_node_definition.dart';
 
-enum MaterialPassOutputKind {
-  preview,
-  finalOutput,
-}
+enum MaterialPassOutputKind { preview, finalOutput }
 
 class MaterialCompiledTextureInput {
   const MaterialCompiledTextureInput({
@@ -13,6 +10,7 @@ class MaterialCompiledTextureInput {
     required this.propertyKey,
     required this.bindingKey,
     required this.valueType,
+    required this.fallbackValue,
     this.sourceNodeId,
     this.sourcePropertyId,
   });
@@ -21,6 +19,7 @@ class MaterialCompiledTextureInput {
   final String propertyKey;
   final String bindingKey;
   final GraphValueType valueType;
+  final GraphValueData fallbackValue;
   final String? sourceNodeId;
   final String? sourcePropertyId;
 
@@ -87,6 +86,7 @@ class MaterialCompiledGraph {
   const MaterialCompiledGraph({
     required this.graphId,
     required this.nodePasses,
+    required this.nodePassesByNodeId,
     required this.topologicalNodeIds,
     required this.downstreamNodeIdsByNodeId,
     required this.defaultOutputNodeId,
@@ -94,18 +94,13 @@ class MaterialCompiledGraph {
 
   final String graphId;
   final List<MaterialCompiledNodePass> nodePasses;
+  final Map<String, MaterialCompiledNodePass> nodePassesByNodeId;
   final List<String> topologicalNodeIds;
   final Map<String, List<String>> downstreamNodeIdsByNodeId;
   final String? defaultOutputNodeId;
 
-  MaterialCompiledNodePass? passForNode(String nodeId) {
-    for (final pass in nodePasses) {
-      if (pass.nodeId == nodeId) {
-        return pass;
-      }
-    }
-    return null;
-  }
+  MaterialCompiledNodePass? passForNode(String nodeId) =>
+      nodePassesByNodeId[nodeId];
 
   Set<String> expandDirtyNodes(Iterable<String> dirtyRoots) {
     final expanded = <String>{};

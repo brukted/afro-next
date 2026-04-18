@@ -15,10 +15,13 @@ const Color _canvasColor = Color(0xFF090B11);
 
 typedef NodeEditorCanvasMenuHandler =
     Future<void> Function(Offset globalPosition, Offset scenePosition);
-typedef NodeEditorNodeMenuHandler =
-    Future<void> Function(NodeEditorNodeViewModel node, Offset globalPosition);
+typedef NodeEditorNodeMenuHandler<T> =
+    Future<void> Function(
+      NodeEditorNodeViewModel<T> node,
+      Offset globalPosition,
+    );
 
-class NodeEditorCanvas extends StatefulWidget {
+class NodeEditorCanvas<T> extends StatefulWidget {
   const NodeEditorCanvas({
     super.key,
     required this.nodes,
@@ -35,7 +38,7 @@ class NodeEditorCanvas extends StatefulWidget {
     this.onRequestNodeMenu,
   });
 
-  final List<NodeEditorNodeViewModel> nodes;
+  final List<NodeEditorNodeViewModel<T>> nodes;
   final List<GraphLinkDocument> links;
   final String? selectedNodeId;
   final String? pendingPropertyId;
@@ -44,15 +47,15 @@ class NodeEditorCanvas extends StatefulWidget {
   final void Function(String nodeId, String propertyId) onSocketTap;
   final VoidCallback onCancelPendingConnection;
   final NodeEditorViewportController? viewportController;
-  final NodeEditorBodyBuilder? buildNodeBody;
+  final NodeEditorBodyBuilder<T>? buildNodeBody;
   final NodeEditorCanvasMenuHandler? onRequestCanvasMenu;
-  final NodeEditorNodeMenuHandler? onRequestNodeMenu;
+  final NodeEditorNodeMenuHandler<T>? onRequestNodeMenu;
 
   @override
-  State<NodeEditorCanvas> createState() => _NodeEditorCanvasState();
+  State<NodeEditorCanvas<T>> createState() => _NodeEditorCanvasState<T>();
 }
 
-class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
+class _NodeEditorCanvasState<T> extends State<NodeEditorCanvas<T>> {
   late final NodeEditorViewportController _internalViewportController;
   _NodeDragSession? _dragSession;
   double _trackpadScale = 1;
@@ -204,7 +207,8 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
             nodeEditorBodyBottomSpacing +
             (index * nodeEditorRowHeight) +
             (nodeEditorRowHeight / 2);
-        final x = node.position.x +
+        final x =
+            node.position.x +
             (socket.direction == GraphSocketDirection.input
                 ? nodeEditorSocketInset
                 : nodeEditorNodeWidth - nodeEditorSocketInset);
@@ -216,7 +220,7 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
   }
 
   void _startNodeDrag({
-    required NodeEditorNodeViewModel node,
+    required NodeEditorNodeViewModel<T> node,
     required Offset globalPosition,
   }) {
     final pointerScene = _scenePositionForGlobal(globalPosition);
@@ -230,7 +234,7 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
   }
 
   void _updateNodeDrag({
-    required NodeEditorNodeViewModel node,
+    required NodeEditorNodeViewModel<T> node,
     required Offset globalPosition,
   }) {
     final dragSession = _dragSession;
@@ -262,15 +266,13 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
       return;
     }
 
-    unawaited(
-      handler(
-        globalPosition,
-        _scenePositionForGlobal(globalPosition),
-      ),
-    );
+    unawaited(handler(globalPosition, _scenePositionForGlobal(globalPosition)));
   }
 
-  void _requestNodeMenu(NodeEditorNodeViewModel node, Offset globalPosition) {
+  void _requestNodeMenu(
+    NodeEditorNodeViewModel<T> node,
+    Offset globalPosition,
+  ) {
     final handler = widget.onRequestNodeMenu;
     if (handler == null) {
       return;
@@ -317,10 +319,7 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
     );
   }
 
-  Offset _localPositionForScroll(
-    PointerScrollEvent event,
-    Size viewportSize,
-  ) {
+  Offset _localPositionForScroll(PointerScrollEvent event, Size viewportSize) {
     final renderObject = context.findRenderObject();
     if (renderObject is! RenderBox) {
       return Offset(viewportSize.width / 2, viewportSize.height / 2);
@@ -330,7 +329,7 @@ class _NodeEditorCanvasState extends State<NodeEditorCanvas> {
   }
 }
 
-class _NodeCard extends StatelessWidget {
+class _NodeCard<T> extends StatelessWidget {
   const _NodeCard({
     required this.node,
     required this.isSelected,
@@ -344,7 +343,7 @@ class _NodeCard extends StatelessWidget {
     required this.onRequestContextMenu,
   });
 
-  final NodeEditorNodeViewModel node;
+  final NodeEditorNodeViewModel<T> node;
   final bool isSelected;
   final String? pendingPropertyId;
   final VoidCallback onSelect;
@@ -352,7 +351,7 @@ class _NodeCard extends StatelessWidget {
   final ValueChanged<Offset> onDragUpdate;
   final VoidCallback onDragEnd;
   final ValueChanged<String> onSocketTap;
-  final NodeEditorBodyBuilder? bodyBuilder;
+  final NodeEditorBodyBuilder<T>? bodyBuilder;
   final ValueChanged<Offset> onRequestContextMenu;
 
   @override
@@ -401,7 +400,9 @@ class _NodeCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 decoration: BoxDecoration(
                   color: node.accentColor.withValues(alpha: 0.14),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(9)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(9),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -431,7 +432,8 @@ class _NodeCard extends StatelessWidget {
                 height: node.bodyHeight,
                 width: double.infinity,
                 child:
-                    bodyBuilder?.call(context, node) ?? _DefaultNodeBody(node: node),
+                    bodyBuilder?.call(context, node) ??
+                    _DefaultNodeBody<T>(node: node),
               ),
             ),
             ...node.sockets.map((socket) {
@@ -465,7 +467,8 @@ class _NodeCard extends StatelessWidget {
                               style: theme.textTheme.bodySmall,
                             ),
                           ),
-                          if (socket.direction == GraphSocketDirection.output) ...[
+                          if (socket.direction ==
+                              GraphSocketDirection.output) ...[
                             const SizedBox(width: 6),
                             _SocketDot(
                               isActive: pendingPropertyId == socket.id,
@@ -489,10 +492,10 @@ class _NodeCard extends StatelessWidget {
   }
 }
 
-class _DefaultNodeBody extends StatelessWidget {
+class _DefaultNodeBody<T> extends StatelessWidget {
   const _DefaultNodeBody({required this.node});
 
-  final NodeEditorNodeViewModel node;
+  final NodeEditorNodeViewModel<T> node;
 
   @override
   Widget build(BuildContext context) {
@@ -600,7 +603,9 @@ class _NodeEditorPainter extends CustomPainter {
     const majorSpacing = 112.0;
     final minorPaint = Paint()..color = const Color(0xFF10141E);
     final majorPaint = Paint()..color = const Color(0xFF181D2B);
-    final sceneRect = viewport.visibleSceneRect(viewportSize).inflate(majorSpacing);
+    final sceneRect = viewport
+        .visibleSceneRect(viewportSize)
+        .inflate(majorSpacing);
 
     final startX = (sceneRect.left / minorSpacing).floor() * minorSpacing;
     final endX = (sceneRect.right / minorSpacing).ceil() * minorSpacing;

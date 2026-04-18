@@ -7,11 +7,7 @@ enum VulkanDescriptorBindingKind {
   storageImage,
 }
 
-enum VulkanImageTargetUsage {
-  transientPass,
-  preview,
-  finalOutput,
-}
+enum VulkanImageTargetUsage { transientPass, preview, finalOutput }
 
 class VulkanShaderAsset {
   const VulkanShaderAsset({
@@ -85,21 +81,16 @@ class VulkanMaterialBackendPlan {
   const VulkanMaterialBackendPlan({
     required this.graphId,
     required this.passes,
+    required this.passesByNodeId,
     required this.previewTargetIdsByNodeId,
     required this.finalOutputTargetId,
   });
 
   final String graphId;
   final List<VulkanMaterialPassPlan> passes;
+  final Map<String, VulkanMaterialPassPlan> passesByNodeId;
   final Map<String, String> previewTargetIdsByNodeId;
   final String? finalOutputTargetId;
 
-  VulkanMaterialPassPlan? passForNode(String nodeId) {
-    for (final pass in passes) {
-      if (pass.nodeId == nodeId) {
-        return pass;
-      }
-    }
-    return null;
-  }
+  VulkanMaterialPassPlan? passForNode(String nodeId) => passesByNodeId[nodeId];
 }

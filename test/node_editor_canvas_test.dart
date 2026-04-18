@@ -19,9 +19,9 @@ void main() {
           body: SizedBox(
             width: 800,
             height: 600,
-            child: NodeEditorCanvas(
+            child: NodeEditorCanvas<String>(
               nodes: [
-                NodeEditorNodeViewModel(
+                NodeEditorNodeViewModel<String>(
                   id: 'node-1',
                   title: 'Material Node',
                   position: Vector2(80, 80),
@@ -112,9 +112,9 @@ void main() {
           body: SizedBox(
             width: 900,
             height: 600,
-            child: NodeEditorCanvas(
+            child: NodeEditorCanvas<Object?>(
               nodes: [
-                NodeEditorNodeViewModel(
+                NodeEditorNodeViewModel<Object?>(
                   id: 'node-small',
                   title: 'Small Node',
                   position: Vector2(80, 80),
@@ -129,7 +129,7 @@ void main() {
                     ),
                   ],
                 ),
-                NodeEditorNodeViewModel(
+                NodeEditorNodeViewModel<Object?>(
                   id: 'node-large',
                   title: 'Large Node',
                   position: Vector2(400, 80),
@@ -191,9 +191,9 @@ void main() {
           body: SizedBox(
             width: 800,
             height: 600,
-            child: NodeEditorCanvas(
+            child: NodeEditorCanvas<Object?>(
               viewportController: viewportController,
-              nodes: const [],
+              nodes: const <NodeEditorNodeViewModel<Object?>>[],
               links: const [],
               selectedNodeId: null,
               pendingPropertyId: null,
@@ -231,9 +231,9 @@ void main() {
           body: SizedBox(
             width: 800,
             height: 600,
-            child: NodeEditorCanvas(
+            child: NodeEditorCanvas<Object?>(
               nodes: [
-                NodeEditorNodeViewModel(
+                NodeEditorNodeViewModel<Object?>(
                   id: 'node-ctx',
                   title: 'Context Node',
                   position: Vector2(80, 80),
@@ -296,10 +296,10 @@ class _NodeEditorDragHarnessState extends State<_NodeEditorDragHarness> {
 
   @override
   Widget build(BuildContext context) {
-    return NodeEditorCanvas(
+    return NodeEditorCanvas<Object?>(
       viewportController: widget.viewportController,
       nodes: [
-        NodeEditorNodeViewModel(
+        NodeEditorNodeViewModel<Object?>(
           id: 'node-1',
           title: 'Node 1',
           position: _position,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../../vulkan/bootstrap/vulkan_bootstrap.dart';
@@ -23,6 +25,7 @@ class MaterialGraphRuntime extends ChangeNotifier {
   Map<String, PreviewRenderTarget> _previews = <String, PreviewRenderTarget>{};
   bool _initialized = false;
   int _previewRevision = 0;
+  int _activeRefreshToken = 0;
 
   bool get isInitialized => _initialized;
 
@@ -43,9 +46,17 @@ class MaterialGraphRuntime extends ChangeNotifier {
   }
 
   void bindGraph(GraphDocument graph) {
-    _compiledGraph = _compiler.compile(graph);
-    _refreshPreviews(
-      dirtyRootNodeIds: graph.nodes.map((node) => node.id),
+    final previousGraphId = _compiledGraph?.graphId;
+    final previousNodeIds =
+        _compiledGraph?.topologicalNodeIds.toSet() ?? <String>{};
+    final compiledGraph = _compiledGraph = _compiler.compile(graph);
+    unawaited(
+      _refreshGraphPreviews(
+        compiledGraph: compiledGraph,
+        dirtyRootNodeIds: graph.nodes.map((node) => node.id),
+        previousGraphId: previousGraphId,
+        previousNodeIds: previousNodeIds,
+      ),
     );
   }
 
@@ -54,40 +65,127 @@ class MaterialGraphRuntime extends ChangeNotifier {
     Iterable<String> dirtyRootNodeIds = const <String>[],
     bool refreshPreviews = true,
   }) {
+    final compiledGraph = _compiledGraph = _compiler.compile(graph);
     if (!refreshPreviews) {
       return;
     }
 
-    _compiledGraph = _compiler.compile(graph);
-    _refreshPreviews(dirtyRootNodeIds: dirtyRootNodeIds);
+    unawaited(
+      _refreshGraphPreviews(
+        compiledGraph: compiledGraph,
+        dirtyRootNodeIds: dirtyRootNodeIds,
+      ),
+    );
   }
 
   void clearGraph() {
+    final previousGraphId = _compiledGraph?.graphId;
+    final previousNodeIds =
+        _compiledGraph?.topologicalNodeIds.toSet() ?? <String>{};
     _compiledGraph = null;
     _previews = <String, PreviewRenderTarget>{};
+    _activeRefreshToken += 1;
+    if (previousGraphId != null) {
+      unawaited(
+        _renderer.disposeGraph(
+          graphId: previousGraphId,
+          activeNodeIds: previousNodeIds,
+        ),
+      );
+    }
     notifyListeners();
   }
 
-  void _refreshPreviews({
+  Future<void> _refreshPreviews({
+    required MaterialCompiledGraph compiledGraph,
     required Iterable<String> dirtyRootNodeIds,
-  }) {
-    final compiledGraph = _compiledGraph;
-    if (compiledGraph == null) {
-      _previews = <String, PreviewRenderTarget>{};
-      notifyListeners();
-      return;
-    }
-
+  }) async {
     final dirtyRoots = dirtyRootNodeIds.toSet();
     final dirtyNodeIds = dirtyRoots.isEmpty
         ? compiledGraph.topologicalNodeIds.toSet()
         : compiledGraph.expandDirtyNodes(dirtyRoots);
     _previewRevision += 1;
-    _previews = _renderer.renderGraphPreviews(
+    final revision = _previewRevision;
+    final refreshToken = ++_activeRefreshToken;
+    _previews = _mergeRenderingTargets(
+      current: _previews,
       graph: compiledGraph,
       dirtyNodeIds: dirtyNodeIds,
-      revision: _previewRevision,
+      revision: revision,
     );
     notifyListeners();
+    final renderedPreviews = await _renderer.renderGraphPreviews(
+      graph: compiledGraph,
+      dirtyNodeIds: dirtyNodeIds,
+      revision: revision,
+    );
+    if (_activeRefreshToken != refreshToken) {
+      return;
+    }
+    if (_compiledGraph?.graphId != compiledGraph.graphId) {
+      return;
+    }
+    _previews = renderedPreviews;
+    notifyListeners();
+  }
+
+  Future<void> _refreshGraphPreviews({
+    required MaterialCompiledGraph compiledGraph,
+    required Iterable<String> dirtyRootNodeIds,
+    String? previousGraphId,
+    Set<String> previousNodeIds = const <String>{},
+  }) async {
+    if (previousGraphId != null && previousGraphId != compiledGraph.graphId) {
+      await _renderer.disposeGraph(
+        graphId: previousGraphId,
+        activeNodeIds: previousNodeIds,
+      );
+    }
+    await _renderer.disposeGraph(
+      graphId: compiledGraph.graphId,
+      activeNodeIds: compiledGraph.topologicalNodeIds.toSet(),
+    );
+    if (_compiledGraph?.graphId != compiledGraph.graphId) {
+      return;
+    }
+    await _refreshPreviews(
+      compiledGraph: compiledGraph,
+      dirtyRootNodeIds: dirtyRootNodeIds,
+    );
+  }
+
+  Map<String, PreviewRenderTarget> _mergeRenderingTargets({
+    required Map<String, PreviewRenderTarget> current,
+    required MaterialCompiledGraph graph,
+    required Set<String> dirtyNodeIds,
+    required int revision,
+  }) {
+    final next = <String, PreviewRenderTarget>{};
+    for (final pass in graph.nodePasses) {
+      final existing = current[pass.nodeId];
+      if (!dirtyNodeIds.contains(pass.nodeId) && existing != null) {
+        next[pass.nodeId] = existing;
+        continue;
+      }
+      next[pass.nodeId] =
+          (existing ??
+                  const PreviewRenderTarget(
+                    id: '',
+                    kind: PreviewRenderTargetKind.placeholder,
+                    label: 'Rendering preview',
+                    diagnostics: <String>[],
+                  ))
+              .copyWith(
+                id: existing?.id ?? pass.nodeId,
+                kind: existing?.kind ?? PreviewRenderTargetKind.placeholder,
+                label: 'Rendering preview',
+                status: PreviewRenderStatus.rendering,
+                diagnostics: <String>[
+                  'Definition: ${pass.definitionId}',
+                  'Revision: $revision',
+                ],
+              );
+    }
+    return next;
   }
 }
