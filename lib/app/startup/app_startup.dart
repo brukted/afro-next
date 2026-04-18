@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/material_graph/material_graph_controller.dart';
 import '../../features/workspace/workspace_controller.dart';
 import '../../services/di/service_locator.dart';
 import '../../services/filesystem/app_paths.dart';
@@ -22,10 +23,15 @@ class AppStartup {
     await serviceLocator<DesktopWindowService>().initialize();
 
     final workspaceController = serviceLocator<WorkspaceController>();
+    final materialGraphController = serviceLocator<MaterialGraphController>();
+    await materialGraphController.initialize();
     await workspaceController.initialize();
 
     logger.info('Eyecandy startup completed.');
 
-    return AppBootstrap(workspaceController: workspaceController);
+    return AppBootstrap(
+      workspaceController: workspaceController,
+      materialGraphController: materialGraphController,
+    );
   }
 }

@@ -18,7 +18,10 @@ class EyecandyApp extends StatelessWidget {
       title: 'Eyecandy',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
-      home: WorkspaceScreen(controller: bootstrap.workspaceController),
+      home: WorkspaceScreen(
+        workspaceController: bootstrap.workspaceController,
+        materialGraphController: bootstrap.materialGraphController,
+      ),
     );
   }
 }

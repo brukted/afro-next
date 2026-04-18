@@ -1,7 +1,7 @@
 Vendored MoltenVK runtime for macOS app bundling.
 
-- Source: Homebrew `molten-vk`
-- Version: 1.4.1
+- Source: official MoltenVK package from `https://github.com/KhronosGroup/MoltenVK`
+- Bundled artifact: `MoltenVK/MoltenVK/dynamic/dylib/macOS/libMoltenVK.dylib`
 - Bundled file: `libMoltenVK.dylib`
 
 The macOS Runner target copies this dylib into the app bundle's

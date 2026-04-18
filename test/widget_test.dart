@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(EyecandyApp(bootstrap: AppBootstrap.preview()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Eyecandy'), findsOneWidget);
+    expect(find.text('Eyecandy Workspace'), findsWidgets);
     expect(find.text('Outliner'), findsOneWidget);
     expect(find.text('Material Editor'), findsOneWidget);
     expect(find.text('Property Editor'), findsOneWidget);

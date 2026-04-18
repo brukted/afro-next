@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/material_graph/material_graph_controller.dart';
 import '../../features/workspace/workspace_controller.dart';
 import '../../shared/ids/id_factory.dart';
 import '../../vulkan/bootstrap/vulkan_bootstrap.dart';
@@ -10,6 +11,7 @@ import '../../vulkan/renderer/placeholder_renderer.dart';
 import '../../vulkan/renderer/renderer_facade.dart';
 import '../filesystem/app_file_picker.dart';
 import '../filesystem/app_paths.dart';
+import '../filesystem/workspace_file_store.dart';
 import '../logging/app_logger.dart';
 import '../preferences/app_preferences.dart';
 import '../windowing/desktop_window_service.dart';
@@ -28,6 +30,7 @@ Future<void> configureServiceLocator({
     ..registerSingleton<AppLogger>(logger)
     ..registerSingleton<AppPreferences>(AppPreferences(sharedPreferences))
     ..registerLazySingleton<AppFilePicker>(() => const AppFilePicker())
+    ..registerLazySingleton<WorkspaceFileStore>(() => const WorkspaceFileStore())
     ..registerLazySingleton<DesktopWindowService>(() => DesktopWindowService())
     ..registerLazySingleton<IdFactory>(() => IdFactory())
     ..registerLazySingleton<PlatformSurfaceBridge>(
@@ -45,13 +48,19 @@ Future<void> configureServiceLocator({
         bootstrapper: serviceLocator<VulkanBootstrapper>(),
       ),
     )
+    ..registerLazySingleton<MaterialGraphController>(
+      () => MaterialGraphController(
+        idFactory: serviceLocator<IdFactory>(),
+        renderer: serviceLocator<RendererFacade>(),
+      ),
+    )
     ..registerLazySingleton<WorkspaceController>(
       () => WorkspaceController(
         idFactory: serviceLocator<IdFactory>(),
-        renderer: serviceLocator<RendererFacade>(),
         preferences: serviceLocator<AppPreferences>(),
         filePicker: serviceLocator<AppFilePicker>(),
         logger: serviceLocator<AppLogger>(),
+        fileStore: serviceLocator<WorkspaceFileStore>(),
       ),
     );
 }

@@ -20,11 +20,12 @@ class PanelFrame extends StatelessWidget {
 
     return Card(
       clipBehavior: Clip.antiAlias,
+      margin: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
+            padding: const EdgeInsets.fromLTRB(12, 10, 8, 9),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
@@ -47,7 +48,7 @@ class PanelFrame extends StatelessWidget {
                         ),
                       ),
                       if (subtitle != null) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
                           subtitle!,
                           style: theme.textTheme.bodySmall?.copyWith(

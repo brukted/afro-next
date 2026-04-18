@@ -1,4 +1,7 @@
-import '../../features/material_graph/models/material_graph_models.dart';
+import '../../features/graph/models/graph_bindings.dart';
+import '../../features/graph/models/graph_models.dart';
+import '../../features/material_graph/material_node_definition.dart';
+import '../../shared/colors/vector4_color_adapter.dart';
 import '../bootstrap/vulkan_bootstrap.dart';
 import '../resources/preview_render_target.dart';
 import 'renderer_facade.dart';
@@ -15,15 +18,15 @@ class PlaceholderVulkanRendererFacade implements RendererFacade {
 
   @override
   PreviewRenderTarget renderNodePreview({
-    required GraphNodeDefinition definition,
-    required GraphNodeInstance node,
+    required MaterialNodeDefinition definition,
+    required GraphNodeDocument node,
+    required List<GraphPropertyBinding> bindings,
     required int revision,
+    required bool isDirty,
   }) {
-    final primaryProperty = node
-        .bindProperties(definition)
-        .where((property) => property.isEditable)
-        .firstOrNull;
-    final label = node.isDirty ? 'Dirty preview' : 'Ready';
+    final primaryProperty =
+        bindings.where((property) => property.isEditable).firstOrNull;
+    final label = isDirty ? 'Dirty preview' : 'Ready';
     final diagnostics = <String>[
       'Definition: ${definition.label}',
       'Revision: $revision',
@@ -34,7 +37,7 @@ class PlaceholderVulkanRendererFacade implements RendererFacade {
       id: node.id,
       kind: PreviewRenderTargetKind.placeholder,
       label: label,
-      accentColor: definition.accentColor,
+      accentColor: Vector4ColorAdapter.toFlutterColor(definition.accentColor),
       diagnostics: diagnostics,
     );
   }
@@ -50,15 +53,17 @@ class PreviewOnlyRendererFacade implements RendererFacade {
 
   @override
   PreviewRenderTarget renderNodePreview({
-    required GraphNodeDefinition definition,
-    required GraphNodeInstance node,
+    required MaterialNodeDefinition definition,
+    required GraphNodeDocument node,
+    required List<GraphPropertyBinding> bindings,
     required int revision,
+    required bool isDirty,
   }) {
     return PreviewRenderTarget(
       id: node.id,
       kind: PreviewRenderTargetKind.placeholder,
       label: 'Preview',
-      accentColor: definition.accentColor,
+      accentColor: Vector4ColorAdapter.toFlutterColor(definition.accentColor),
       diagnostics: <String>[
         'Definition: ${definition.label}',
         'Revision: $revision',
@@ -67,8 +72,8 @@ class PreviewOnlyRendererFacade implements RendererFacade {
   }
 }
 
-extension on Iterable<GraphNodePropertyView> {
-  GraphNodePropertyView? get firstOrNull {
+extension on Iterable<GraphPropertyBinding> {
+  GraphPropertyBinding? get firstOrNull {
     if (isEmpty) {
       return null;
     }

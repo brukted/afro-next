@@ -1,16 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:vector_math/vector_math.dart' show Vector4;
 
+import '../../shared/colors/vector4_color_adapter.dart';
 import '../../shared/widgets/panel_frame.dart';
-import '../material_graph/models/material_graph_models.dart';
-import '../workspace/workspace_controller.dart';
+import '../graph/models/graph_bindings.dart';
+import '../graph/models/graph_schema.dart';
+import '../material_graph/material_graph_controller.dart';
 
 class PropertyEditorPanel extends StatelessWidget {
-  const PropertyEditorPanel({super.key, required this.controller});
+  const PropertyEditorPanel({
+    super.key,
+    required this.controller,
+  });
 
-  final WorkspaceController controller;
+  final MaterialGraphController controller;
 
   @override
   Widget build(BuildContext context) {
+    if (!controller.hasGraph) {
+      return const PanelFrame(
+        title: 'Property Editor',
+        subtitle: 'Select a material graph',
+        child: Center(child: Text('No editable material graph selected.')),
+      );
+    }
+
     final node = controller.selectedNode;
     if (node == null) {
       return const PanelFrame(
@@ -23,23 +37,24 @@ class PropertyEditorPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final definition = controller.definitionForNode(node);
     final properties = controller.boundPropertiesForNode(node);
+    final accentColor = Vector4ColorAdapter.toFlutterColor(definition.accentColor);
 
     return PanelFrame(
       title: 'Property Editor',
       subtitle: node.name,
       child: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         children: [
           Row(
             children: [
-              Icon(definition.icon, color: definition.accentColor),
-              const SizedBox(width: 12),
+              Icon(definition.icon, color: accentColor, size: 18),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(definition.label, style: theme.textTheme.titleMedium),
-                    const SizedBox(height: 4),
+                    Text(definition.label, style: theme.textTheme.titleSmall),
+                    const SizedBox(height: 2),
                     Text(
                       definition.description,
                       style: theme.textTheme.bodySmall?.copyWith(
@@ -51,19 +66,19 @@ class PropertyEditorPanel extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Text(
-            'Inputs',
+            'Properties',
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ...properties
               .where((property) => property.isEditable)
               .map(
                 (property) => Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.only(bottom: 14),
                   child: _EditablePropertyField(
                     controller: controller,
                     nodeId: node.id,
@@ -71,22 +86,21 @@ class PropertyEditorPanel extends StatelessWidget {
                   ),
                 ),
               ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
             'Sockets',
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ...properties
               .where((property) => property.definition.isSocket)
               .map(
                 (property) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: _SocketSummaryTile(
                     controller: controller,
-                    nodeId: node.id,
                     property: property,
                   ),
                 ),
@@ -104,9 +118,9 @@ class _EditablePropertyField extends StatelessWidget {
     required this.property,
   });
 
-  final WorkspaceController controller;
+  final MaterialGraphController controller;
   final String nodeId;
-  final GraphNodePropertyView property;
+  final GraphPropertyBinding property;
 
   @override
   Widget build(BuildContext context) {
@@ -137,14 +151,17 @@ class _EditablePropertyField extends StatelessWidget {
         final value = property.value as int;
         return DropdownButtonFormField<int>(
           initialValue: value,
-          decoration: InputDecoration(labelText: property.label),
+          decoration: InputDecoration(
+            labelText: property.label,
+            isDense: true,
+          ),
           items: definition.enumOptions
-              .map((option) {
-                return DropdownMenuItem<int>(
+              .map(
+                (option) => DropdownMenuItem<int>(
                   value: option.value,
                   child: Text(option.label),
-                );
-              })
+                ),
+              )
               .toList(growable: false),
           onChanged: (nextValue) {
             if (nextValue == null) {
@@ -159,7 +176,7 @@ class _EditablePropertyField extends StatelessWidget {
           },
         );
       case GraphValueType.color:
-        final color = property.value as Color;
+        final color = property.value as Vector4;
         return _ColorEditor(
           label: property.label,
           color: color,
@@ -187,12 +204,14 @@ class _ColorEditor extends StatelessWidget {
   });
 
   final String label;
-  final Color color;
+  final Vector4 color;
   final void Function({double? red, double? green, double? blue, double? alpha})
-  onChanged;
+      onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final flutterColor = Vector4ColorAdapter.toFlutterColor(color);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -200,11 +219,11 @@ class _ColorEditor extends StatelessWidget {
           children: [
             Expanded(child: Text(label)),
             Container(
-              width: 26,
-              height: 26,
+              width: 22,
+              height: 22,
               decoration: BoxDecoration(
-                color: color,
-                borderRadius: BorderRadius.circular(8),
+                color: flutterColor,
+                borderRadius: BorderRadius.circular(6),
                 border: Border.all(color: Colors.white24),
               ),
             ),
@@ -214,25 +233,25 @@ class _ColorEditor extends StatelessWidget {
         _ChannelSlider(
           label: 'R',
           color: Colors.red,
-          value: color.r,
+          value: color.x,
           onChanged: (value) => onChanged(red: value),
         ),
         _ChannelSlider(
           label: 'G',
           color: Colors.green,
-          value: color.g,
+          value: color.y,
           onChanged: (value) => onChanged(green: value),
         ),
         _ChannelSlider(
           label: 'B',
           color: Colors.blue,
-          value: color.b,
+          value: color.z,
           onChanged: (value) => onChanged(blue: value),
         ),
         _ChannelSlider(
           label: 'A',
           color: Colors.white,
-          value: color.a,
+          value: color.w,
           onChanged: (value) => onChanged(alpha: value),
         ),
       ],
@@ -260,10 +279,22 @@ class _ChannelSlider extends StatelessWidget {
         SizedBox(width: 20, child: Text(label)),
         Expanded(
           child: SliderTheme(
-            data: SliderTheme.of(
-              context,
-            ).copyWith(activeTrackColor: color, thumbColor: color),
-            child: Slider(value: value, onChanged: onChanged),
+            data: SliderTheme.of(context).copyWith(trackHeight: 3),
+            child: Slider(
+              activeColor: color,
+              value: value,
+              min: 0,
+              max: 1,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+        SizedBox(
+          width: 38,
+          child: Text(
+            value.toStringAsFixed(2),
+            textAlign: TextAlign.end,
+            style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
       ],
@@ -274,93 +305,49 @@ class _ChannelSlider extends StatelessWidget {
 class _SocketSummaryTile extends StatelessWidget {
   const _SocketSummaryTile({
     required this.controller,
-    required this.nodeId,
     required this.property,
   });
 
-  final WorkspaceController controller;
-  final String nodeId;
-  final GraphNodePropertyView property;
+  final MaterialGraphController controller;
+  final GraphPropertyBinding property;
 
   @override
   Widget build(BuildContext context) {
+    final direction = property.definition.socketDirection!;
+    final isConnected = direction == GraphSocketDirection.input
+        ? controller.hasIncomingLink(property.id)
+        : controller.hasOutgoingLink(property.id);
     final theme = Theme.of(context);
-    final isInput =
-        property.definition.socketDirection == GraphSocketDirection.input;
-    final relatedLinks = controller.activeGraph.links
-        .where((link) {
-          return isInput
-              ? link.toPropertyId == property.id
-              : link.fromPropertyId == property.id;
-        })
-        .toList(growable: false);
 
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.34),
         ),
       ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                isInput ? Icons.input_outlined : Icons.output_outlined,
-                size: 18,
-                color: isInput
-                    ? theme.colorScheme.secondary
-                    : theme.colorScheme.primary,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              direction == GraphSocketDirection.input
+                  ? Icons.arrow_right_alt
+                  : Icons.arrow_left,
+              size: 16,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(property.label)),
+            Text(
+              isConnected ? 'connected' : 'open',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(width: 8),
-              Expanded(child: Text(property.label)),
-              Text(
-                relatedLinks.isEmpty
-                    ? 'Unlinked'
-                    : '${relatedLinks.length} link(s)',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-          if (relatedLinks.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ...relatedLinks.map((link) {
-              final connectedNode = controller.activeGraph.nodes.firstWhere(
-                (node) =>
-                    node.id == (isInput ? link.fromNodeId : link.toNodeId),
-              );
-              final connectedPropertyLabel = controller.labelForProperty(
-                nodeId: connectedNode.id,
-                propertyId: isInput ? link.fromPropertyId : link.toPropertyId,
-              );
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${connectedNode.name} • $connectedPropertyLabel',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
-                    if (isInput)
-                      IconButton(
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => controller.removeLink(link.id),
-                        icon: const Icon(Icons.link_off_outlined, size: 18),
-                      ),
-                  ],
-                ),
-              );
-            }),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
