@@ -91,6 +91,9 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.palette_outlined,
       accentColor: _color('#3DD6B0'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/uniform_color.frag',
+      ),
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(
@@ -176,6 +179,9 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.merge_type_outlined,
       accentColor: _color('#7D67FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/blend.frag',
+      ),
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(
@@ -261,6 +267,9 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.tune_outlined,
       accentColor: _color('#FFB053'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/channel_select.frag',
+      ),
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(
@@ -330,6 +339,9 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.circle_outlined,
       accentColor: _color('#F06C8F'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/circle.frag',
+      ),
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(
@@ -361,6 +373,7 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.timeline_outlined,
       accentColor: _color('#8FA8FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(shaderAssetId: null),
     ),
   ];
 

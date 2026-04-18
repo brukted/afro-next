@@ -6,7 +6,6 @@ import '../../shared/colors/vector4_color_adapter.dart';
 import '../../shared/ids/id_factory.dart';
 import '../../vulkan/bootstrap/vulkan_bootstrap.dart';
 import '../../vulkan/renderer/placeholder_renderer.dart';
-import '../../vulkan/renderer/renderer_facade.dart';
 import '../../vulkan/resources/preview_render_target.dart';
 import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
@@ -14,6 +13,8 @@ import '../graph/models/graph_schema.dart';
 import 'material_graph_catalog.dart';
 import 'material_graph_migration.dart';
 import 'material_node_definition.dart';
+import 'runtime/material_graph_compiler.dart';
+import 'runtime/material_graph_runtime.dart';
 
 class PendingSocketConnection {
   const PendingSocketConnection({
@@ -30,42 +31,43 @@ class PendingSocketConnection {
 class MaterialGraphController extends ChangeNotifier {
   MaterialGraphController({
     required IdFactory idFactory,
-    required RendererFacade renderer,
+    required MaterialGraphCatalog catalog,
+    required MaterialGraphRuntime runtime,
   }) : _idFactory = idFactory,
-       _renderer = renderer,
-       _catalog = MaterialGraphCatalog(idFactory);
+       _catalog = catalog,
+       _runtime = runtime {
+    _runtime.addListener(_handleRuntimeChanged);
+  }
 
   factory MaterialGraphController.preview() {
     final idFactory = IdFactory();
+    final catalog = MaterialGraphCatalog(idFactory);
     return MaterialGraphController(
       idFactory: idFactory,
-      renderer: const PreviewOnlyRendererFacade(),
+      catalog: catalog,
+      runtime: MaterialGraphRuntime(
+        compiler: MaterialGraphCompiler(catalog: catalog),
+        renderer: const PreviewOnlyRendererFacade(),
+      ),
     );
   }
 
   final IdFactory _idFactory;
-  final RendererFacade _renderer;
   final MaterialGraphCatalog _catalog;
+  final MaterialGraphRuntime _runtime;
 
   GraphDocument? _graph;
   ValueChanged<GraphDocument>? _onGraphChanged;
   String? _selectedNodeId;
   PendingSocketConnection? _pendingConnection;
-  RendererBootstrapState _rendererState =
-      const RendererBootstrapState.preview();
-  final Map<String, PreviewRenderTarget> _previews =
-      <String, PreviewRenderTarget>{};
-  final Set<String> _dirtyNodes = <String>{};
-  bool _initialized = false;
-  int _previewRevision = 0;
 
-  bool get isInitialized => _initialized;
+  bool get isInitialized => _runtime.isInitialized;
 
   bool get hasGraph => _graph != null;
 
   String? get graphId => _graph?.id;
 
-  RendererBootstrapState get rendererState => _rendererState;
+  RendererBootstrapState get rendererState => _runtime.rendererState;
 
   List<MaterialNodeDefinition> get nodeDefinitions => _catalog.definitions;
 
@@ -92,13 +94,13 @@ class MaterialGraphController extends ChangeNotifier {
   }
 
   Future<void> initialize() async {
-    if (_initialized) {
-      return;
-    }
+    await _runtime.initialize();
+  }
 
-    _rendererState = await _renderer.bootstrap();
-    _initialized = true;
-    notifyListeners();
+  @override
+  void dispose() {
+    _runtime.removeListener(_handleRuntimeChanged);
+    super.dispose();
   }
 
   void bindGraph({
@@ -112,15 +114,11 @@ class MaterialGraphController extends ChangeNotifier {
     if (graphChanged) {
       _selectedNodeId = null;
       _pendingConnection = null;
-      _previews.clear();
-      _dirtyNodes
-        ..clear()
-        ..addAll(normalizedGraph.nodes.map((node) => node.id));
     }
     if (!identical(normalizedGraph, graph)) {
       onChanged(normalizedGraph);
     }
-    _refreshPreviews();
+    _runtime.bindGraph(normalizedGraph);
     notifyListeners();
   }
 
@@ -129,8 +127,7 @@ class MaterialGraphController extends ChangeNotifier {
     _onGraphChanged = null;
     _selectedNodeId = null;
     _pendingConnection = null;
-    _previews.clear();
-    _dirtyNodes.clear();
+    _runtime.clearGraph();
     notifyListeners();
   }
 
@@ -172,8 +169,10 @@ class MaterialGraphController extends ChangeNotifier {
     );
 
     _selectedNodeId = node.id;
-    _dirtyNodes.add(node.id);
-    _commitGraph(graph.copyWith(nodes: [...graph.nodes, node]));
+    _commitGraph(
+      graph.copyWith(nodes: [...graph.nodes, node]),
+      dirtyRootNodeIds: [node.id],
+    );
   }
 
   void duplicateNode(String nodeId) {
@@ -199,8 +198,10 @@ class MaterialGraphController extends ChangeNotifier {
     );
 
     _selectedNodeId = duplicatedNode.id;
-    _dirtyNodes.add(duplicatedNode.id);
-    _commitGraph(graph.copyWith(nodes: [...graph.nodes, duplicatedNode]));
+    _commitGraph(
+      graph.copyWith(nodes: [...graph.nodes, duplicatedNode]),
+      dirtyRootNodeIds: [duplicatedNode.id],
+    );
   }
 
   void deleteNode(String nodeId) {
@@ -212,9 +213,10 @@ class MaterialGraphController extends ChangeNotifier {
     final linksToRemove = graph.links
         .where((link) => link.fromNodeId == nodeId || link.toNodeId == nodeId)
         .toList(growable: false);
-    for (final link in linksToRemove.where((entry) => entry.fromNodeId == nodeId)) {
-      _markDirty(link.toNodeId);
-    }
+    final dirtyRootNodeIds = linksToRemove
+        .where((entry) => entry.fromNodeId == nodeId)
+        .map((link) => link.toNodeId)
+        .toSet();
 
     if (_pendingConnection?.nodeId == nodeId) {
       _pendingConnection = null;
@@ -222,9 +224,6 @@ class MaterialGraphController extends ChangeNotifier {
     if (_selectedNodeId == nodeId) {
       _selectedNodeId = null;
     }
-    _previews.remove(nodeId);
-    _dirtyNodes.remove(nodeId);
-
     _commitGraph(
       graph.copyWith(
         nodes: graph.nodes
@@ -234,6 +233,7 @@ class MaterialGraphController extends ChangeNotifier {
             .where((link) => link.fromNodeId != nodeId && link.toNodeId != nodeId)
             .toList(growable: false),
       ),
+      dirtyRootNodeIds: dirtyRootNodeIds,
     );
   }
 
@@ -250,10 +250,12 @@ class MaterialGraphController extends ChangeNotifier {
       return;
     }
 
-    _markDirty(nodeId);
-    for (final link in linksToRemove.where((entry) => entry.fromNodeId == nodeId)) {
-      _markDirty(link.toNodeId);
-    }
+    final dirtyRootNodeIds = <String>{
+      nodeId,
+      ...linksToRemove
+          .where((entry) => entry.fromNodeId == nodeId)
+          .map((link) => link.toNodeId),
+    };
 
     if (_pendingConnection?.nodeId == nodeId) {
       _pendingConnection = null;
@@ -265,6 +267,7 @@ class MaterialGraphController extends ChangeNotifier {
             .where((link) => link.fromNodeId != nodeId && link.toNodeId != nodeId)
             .toList(growable: false),
       ),
+      dirtyRootNodeIds: dirtyRootNodeIds,
     );
   }
 
@@ -369,12 +372,18 @@ class MaterialGraphController extends ChangeNotifier {
       return;
     }
 
+    final removedLink = graph.links.firstWhereOrNull((link) => link.id == linkId);
+    if (removedLink == null) {
+      return;
+    }
+
     _commitGraph(
       graph.copyWith(
         links: graph.links
             .where((link) => link.id != linkId)
             .toList(growable: false),
       ),
+      dirtyRootNodeIds: [removedLink.toNodeId],
     );
   }
 
@@ -454,7 +463,7 @@ class MaterialGraphController extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  PreviewRenderTarget? previewForNode(String nodeId) => _previews[nodeId];
+  PreviewRenderTarget? previewForNode(String nodeId) => _runtime.previewForNode(nodeId);
 
   bool hasIncomingLink(String propertyId) {
     return graph.links.any((link) => link.toPropertyId == propertyId);
@@ -494,8 +503,10 @@ class MaterialGraphController extends ChangeNotifier {
     );
 
     _pendingConnection = null;
-    _markDirty(fromNodeId);
-    _commitGraph(graph.copyWith(links: filteredLinks));
+    _commitGraph(
+      graph.copyWith(links: filteredLinks),
+      dirtyRootNodeIds: [fromNodeId],
+    );
   }
 
   void _updatePropertyValue({
@@ -511,7 +522,6 @@ class MaterialGraphController extends ChangeNotifier {
         )
         .toList(growable: false);
 
-    _markDirty(nodeId);
     _commitGraph(
       graph.copyWith(
         nodes: graph.nodes
@@ -522,23 +532,8 @@ class MaterialGraphController extends ChangeNotifier {
             )
             .toList(growable: false),
       ),
+      dirtyRootNodeIds: [nodeId],
     );
-  }
-
-  void _markDirty(String nodeId) {
-    final visited = <String>{};
-    _markDirtyRecursive(nodeId, visited);
-  }
-
-  void _markDirtyRecursive(String nodeId, Set<String> visited) {
-    if (!visited.add(nodeId)) {
-      return;
-    }
-
-    _dirtyNodes.add(nodeId);
-    for (final link in graph.links.where((entry) => entry.fromNodeId == nodeId)) {
-      _markDirtyRecursive(link.toNodeId, visited);
-    }
   }
 
   String _nextDuplicateName(String baseName) {
@@ -554,32 +549,22 @@ class MaterialGraphController extends ChangeNotifier {
     }
   }
 
-  void _commitGraph(GraphDocument updatedGraph, {bool refreshPreviews = true}) {
+  void _commitGraph(
+    GraphDocument updatedGraph, {
+    bool refreshPreviews = true,
+    Iterable<String> dirtyRootNodeIds = const <String>[],
+  }) {
     _graph = updatedGraph;
     _onGraphChanged?.call(updatedGraph);
-    if (refreshPreviews) {
-      _refreshPreviews();
-    }
+    _runtime.updateGraph(
+      updatedGraph,
+      dirtyRootNodeIds: dirtyRootNodeIds,
+      refreshPreviews: refreshPreviews,
+    );
     notifyListeners();
   }
 
-  void _refreshPreviews() {
-    if (!hasGraph) {
-      return;
-    }
-
-    _previewRevision += 1;
-    for (final node in graph.nodes) {
-      final definition = definitionForNode(node);
-      final bindings = boundPropertiesForNode(node);
-      _previews[node.id] = _renderer.renderNodePreview(
-        definition: definition,
-        node: node,
-        bindings: bindings,
-        revision: _previewRevision,
-        isDirty: _dirtyNodes.contains(node.id),
-      );
-    }
-    _dirtyNodes.clear();
+  void _handleRuntimeChanged() {
+    notifyListeners();
   }
 }

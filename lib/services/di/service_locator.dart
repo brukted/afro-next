@@ -2,6 +2,9 @@ import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/material_graph/material_graph_controller.dart';
+import '../../features/material_graph/material_graph_catalog.dart';
+import '../../features/material_graph/runtime/material_graph_compiler.dart';
+import '../../features/material_graph/runtime/material_graph_runtime.dart';
 import '../../features/workspace/workspace_controller.dart';
 import '../../shared/ids/id_factory.dart';
 import '../../vulkan/bootstrap/vulkan_bootstrap.dart';
@@ -33,6 +36,9 @@ Future<void> configureServiceLocator({
     ..registerLazySingleton<WorkspaceFileStore>(() => const WorkspaceFileStore())
     ..registerLazySingleton<DesktopWindowService>(() => DesktopWindowService())
     ..registerLazySingleton<IdFactory>(() => IdFactory())
+    ..registerLazySingleton<MaterialGraphCatalog>(
+      () => MaterialGraphCatalog(serviceLocator<IdFactory>()),
+    )
     ..registerLazySingleton<PlatformSurfaceBridge>(
       PlatformSurfaceBridge.current,
     )
@@ -48,10 +54,22 @@ Future<void> configureServiceLocator({
         bootstrapper: serviceLocator<VulkanBootstrapper>(),
       ),
     )
+    ..registerLazySingleton<MaterialGraphCompiler>(
+      () => MaterialGraphCompiler(
+        catalog: serviceLocator<MaterialGraphCatalog>(),
+      ),
+    )
+    ..registerLazySingleton<MaterialGraphRuntime>(
+      () => MaterialGraphRuntime(
+        compiler: serviceLocator<MaterialGraphCompiler>(),
+        renderer: serviceLocator<RendererFacade>(),
+      ),
+    )
     ..registerLazySingleton<MaterialGraphController>(
       () => MaterialGraphController(
         idFactory: serviceLocator<IdFactory>(),
-        renderer: serviceLocator<RendererFacade>(),
+        catalog: serviceLocator<MaterialGraphCatalog>(),
+        runtime: serviceLocator<MaterialGraphRuntime>(),
       ),
     )
     ..registerLazySingleton<WorkspaceController>(
