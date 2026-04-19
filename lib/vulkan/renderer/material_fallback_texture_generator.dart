@@ -80,13 +80,17 @@ class MaterialFallbackTextureGenerator {
     for (var index = 0; index < width; index += 1) {
       final x = index / (width - 1);
       final lum = curve.lum.valueAt(x).clamp(0, 1).toDouble();
-      final encodedAlpha = lum <= 0.0001 ? 1.0 : lum;
+      final encodedAlpha = lum;
       final red = curve.red.valueAt(x).clamp(0, 1).toDouble();
       final green = curve.green.valueAt(x).clamp(0, 1).toDouble();
       final blue = curve.blue.valueAt(x).clamp(0, 1).toDouble();
-      final encodedRed = math.sqrt((red * encodedAlpha).clamp(0, 1));
-      final encodedGreen = math.sqrt((green * encodedAlpha).clamp(0, 1));
-      final encodedBlue = math.sqrt((blue * encodedAlpha).clamp(0, 1));
+      final encodedRed = (math.sqrt(red) * encodedAlpha).clamp(0, 1).toDouble();
+      final encodedGreen = (math.sqrt(green) * encodedAlpha)
+          .clamp(0, 1)
+          .toDouble();
+      final encodedBlue = (math.sqrt(blue) * encodedAlpha)
+          .clamp(0, 1)
+          .toDouble();
       final offset = index * 4;
       bytes[offset] = _toByte(encodedBlue);
       bytes[offset + 1] = _toByte(encodedGreen);

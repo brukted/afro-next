@@ -15,6 +15,12 @@ layout(set = 0, binding = 3) uniform texture2D CurveLUTTex;
 #define MainTex sampler2D(MainTexTex, linearSampler)
 #define CurveLUT sampler2D(CurveLUTTex, linearSampler)
 
+float decodeCurveChannel(float encodedChannel, float encodedLuminance) {
+    return encodedLuminance <= 0.0001
+        ? 0.0
+        : (encodedChannel * encodedChannel) / encodedLuminance;
+}
+
 void main() {
     vec4 c = texture(MainTex, UV);
 
@@ -26,9 +32,10 @@ void main() {
     vec4 gg = texelFetch(CurveLUT, ivec2(gx, 0), 0);
     vec4 bb = texelFetch(CurveLUT, ivec2(bx, 0), 0);
 
-    float rmid = (rr.r * 255) / (rr.a * 255);
-    float gmid = (gg.g * 255) / (gg.a * 255);
-    float bmid = (bb.b * 255) / (bb.a * 255);
-
-    FragColor = vec4(rr.r * rmid, gg.g * gmid, bb.b * bmid, c.a);
+    FragColor = vec4(
+        decodeCurveChannel(rr.r, rr.a),
+        decodeCurveChannel(gg.g, gg.a),
+        decodeCurveChannel(bb.b, bb.a),
+        c.a
+    );
 }

@@ -370,7 +370,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'image_node',
         label: 'Image',
-        description: 'Loads a workspace image resource into the material graph.',
+        description:
+            'Loads a workspace image resource into the material graph.',
         properties: [
           _resourceDescriptorInput(
             'resource',
@@ -415,7 +416,11 @@ class MaterialGraphCatalog {
         description:
             'Renders styled text to a texture using a system font family name.',
         properties: [
-          _textDescriptorInput('content', 'Text Content', bindingKey: 'MainTex'),
+          _textDescriptorInput(
+            'content',
+            'Text Content',
+            bindingKey: 'MainTex',
+          ),
           _outputColorProperty(),
         ],
       ),
@@ -490,7 +495,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'grayscaleconv_node',
         label: 'Grayscale Convert',
-        description: 'Converts color to grayscale using configurable channel weights.',
+        description:
+            'Converts color to grayscale using configurable channel weights.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _float4Input(
@@ -597,7 +603,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'blur_node',
         label: 'Blur',
-        description: 'Applies a one-dimensional blur along the pixel-shape axis.',
+        description:
+            'Applies a one-dimensional blur along the pixel-shape axis.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _floatInput(
@@ -652,7 +659,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'warp_node',
         label: 'Warp',
-        description: 'Warps the main texture using a normal-style warp texture.',
+        description:
+            'Warps the main texture using a normal-style warp texture.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _socketColorInput('Warp', 'Warp Texture'),
@@ -677,7 +685,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'warpdirectional_node',
         label: 'Warp Directional',
-        description: 'Warps the main texture using scalar direction and warp input.',
+        description:
+            'Warps the main texture using scalar direction and warp input.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _socketColorInput('Warp', 'Warp Texture'),
@@ -744,7 +753,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'emboss_node',
         label: 'Emboss',
-        description: 'Embosses the main texture using a synthetic light direction.',
+        description:
+            'Embosses the main texture using a synthetic light direction.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _floatInput(
@@ -801,7 +811,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'gradientmap_node',
         label: 'Gradient Map',
-        description: 'Maps the main texture through a LUT texture and optional mask.',
+        description:
+            'Maps the main texture through a LUT texture and optional mask.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _socketGradientInput('ColorLUT', 'Color LUT'),
@@ -821,7 +832,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'curve_node',
         label: 'Curve',
-        description: 'Applies a generated RGB curve LUT to the main texture.',
+        description:
+            'Applies luminance and RGB curve LUT adjustments to the main texture.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
           _curveDescriptorInput('curve', 'Curve', bindingKey: 'CurveLUT'),
@@ -838,7 +850,8 @@ class MaterialGraphCatalog {
       schema: GraphNodeSchema(
         id: 'occlusion_node',
         label: 'Occlusion',
-        description: 'Combines a blurred occlusion texture with the original input.',
+        description:
+            'Combines a blurred occlusion texture with the original input.',
         properties: [
           _socketColorInput('MainTex', 'Blurred Texture'),
           _socketColorInput('Original', 'Original'),
@@ -858,8 +871,16 @@ class MaterialGraphCatalog {
         description: 'Transforms texture coordinates with matrix controls.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
-          _float3x3Input('rotation', 'Rotation Matrix', defaultValue: _identityMatrix3()),
-          _float3x3Input('scale', 'Scale Matrix', defaultValue: _identityMatrix3()),
+          _float3x3Input(
+            'rotation',
+            'Rotation Matrix',
+            defaultValue: _identityMatrix3(),
+          ),
+          _float3x3Input(
+            'scale',
+            'Scale Matrix',
+            defaultValue: _identityMatrix3(),
+          ),
           _float3Input(
             'translation',
             'Translation',
@@ -935,7 +956,9 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.timeline_outlined,
       accentColor: _color('#8FA8FF'),
-      runtime: const MaterialNodeRuntimeDefinition.fragment(shaderAssetId: null),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: null,
+      ),
     ),
   ];
 
@@ -1119,11 +1142,15 @@ class MaterialGraphCatalog {
     );
   }
 
-  static GraphPropertyDefinition _socketGradientInput(String key, String label) {
+  static GraphPropertyDefinition _socketGradientInput(
+    String key,
+    String label,
+  ) {
     return GraphPropertyDefinition(
       key: key,
       label: label,
-      description: 'Editable gradient fallback when no LUT texture is connected.',
+      description:
+          'Editable gradient fallback when no LUT texture is connected.',
       propertyType: GraphPropertyType.input,
       socket: true,
       valueType: GraphValueType.gradient,
