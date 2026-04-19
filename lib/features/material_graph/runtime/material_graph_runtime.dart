@@ -6,6 +6,7 @@ import '../../../vulkan/bootstrap/vulkan_bootstrap.dart';
 import '../../../vulkan/renderer/renderer_facade.dart';
 import '../../../vulkan/resources/preview_render_target.dart';
 import '../../graph/models/graph_models.dart';
+import '../material_output_size.dart';
 import 'material_execution_ir.dart';
 import 'material_graph_compiler.dart';
 
@@ -45,11 +46,21 @@ class MaterialGraphRuntime extends ChangeNotifier {
     notifyListeners();
   }
 
-  void bindGraph(GraphDocument graph) {
+  void bindGraph(
+    GraphDocument graph, {
+    MaterialOutputSizeSettings graphOutputSizeSettings =
+        const MaterialOutputSizeSettings(),
+    MaterialOutputSizeValue sessionParentOutputSize =
+        const MaterialOutputSizeValue.parentDefault(),
+  }) {
     final previousGraphId = _compiledGraph?.graphId;
     final previousNodeIds =
         _compiledGraph?.topologicalNodeIds.toSet() ?? <String>{};
-    final compiledGraph = _compiledGraph = _compiler.compile(graph);
+    final compiledGraph = _compiledGraph = _compiler.compile(
+      graph,
+      graphOutputSizeSettings: graphOutputSizeSettings,
+      sessionParentOutputSize: sessionParentOutputSize,
+    );
     unawaited(
       _refreshGraphPreviews(
         compiledGraph: compiledGraph,
@@ -62,10 +73,18 @@ class MaterialGraphRuntime extends ChangeNotifier {
 
   void updateGraph(
     GraphDocument graph, {
+    MaterialOutputSizeSettings graphOutputSizeSettings =
+        const MaterialOutputSizeSettings(),
+    MaterialOutputSizeValue sessionParentOutputSize =
+        const MaterialOutputSizeValue.parentDefault(),
     Iterable<String> dirtyRootNodeIds = const <String>[],
     bool refreshPreviews = true,
   }) {
-    final compiledGraph = _compiledGraph = _compiler.compile(graph);
+    final compiledGraph = _compiledGraph = _compiler.compile(
+      graph,
+      graphOutputSizeSettings: graphOutputSizeSettings,
+      sessionParentOutputSize: sessionParentOutputSize,
+    );
     if (!refreshPreviews) {
       return;
     }
@@ -182,6 +201,7 @@ class MaterialGraphRuntime extends ChangeNotifier {
                 status: PreviewRenderStatus.rendering,
                 diagnostics: <String>[
                   'Definition: ${pass.definitionId}',
+                  'Extent: ${pass.resolvedOutputSize.width}x${pass.resolvedOutputSize.height}',
                   'Revision: $revision',
                 ],
               );

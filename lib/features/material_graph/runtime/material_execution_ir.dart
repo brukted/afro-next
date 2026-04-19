@@ -1,8 +1,37 @@
 import '../../graph/models/graph_models.dart';
 import '../../graph/models/graph_schema.dart';
 import '../material_node_definition.dart';
+import '../material_output_size.dart';
 
 enum MaterialPassOutputKind { preview, finalOutput }
+
+class MaterialResolvedOutputSize {
+  const MaterialResolvedOutputSize({
+    required this.width,
+    required this.height,
+    required this.widthLog2,
+    required this.heightLog2,
+  });
+
+  final int width;
+  final int height;
+  final int widthLog2;
+  final int heightLog2;
+
+  String get extentLabel => '${width}x$height';
+
+  String get extentDiagnostic => 'Extent: $extentLabel';
+
+  factory MaterialResolvedOutputSize.fromLog2(MaterialOutputSizeValue value) {
+    final clamped = value.clampAbsolute();
+    return MaterialResolvedOutputSize(
+      width: clamped.width,
+      height: clamped.height,
+      widthLog2: clamped.widthLog2,
+      heightLog2: clamped.heightLog2,
+    );
+  }
+}
 
 class MaterialCompiledTextureInput {
   const MaterialCompiledTextureInput({
@@ -69,6 +98,7 @@ class MaterialCompiledNodePass {
     required this.parameterBindings,
     required this.output,
     required this.upstreamNodeIds,
+    required this.resolvedOutputSize,
   });
 
   final String nodeId;
@@ -80,6 +110,7 @@ class MaterialCompiledNodePass {
   final List<MaterialCompiledParameterBinding> parameterBindings;
   final MaterialCompiledOutputBinding output;
   final List<String> upstreamNodeIds;
+  final MaterialResolvedOutputSize resolvedOutputSize;
 }
 
 class MaterialCompiledGraph {
@@ -90,6 +121,7 @@ class MaterialCompiledGraph {
     required this.topologicalNodeIds,
     required this.downstreamNodeIdsByNodeId,
     required this.defaultOutputNodeId,
+    required this.resolvedGraphOutputSize,
   });
 
   final String graphId;
@@ -98,6 +130,7 @@ class MaterialCompiledGraph {
   final List<String> topologicalNodeIds;
   final Map<String, List<String>> downstreamNodeIdsByNodeId;
   final String? defaultOutputNodeId;
+  final MaterialResolvedOutputSize resolvedGraphOutputSize;
 
   MaterialCompiledNodePass? passForNode(String nodeId) =>
       nodePassesByNodeId[nodeId];

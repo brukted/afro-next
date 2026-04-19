@@ -11,9 +11,13 @@ typedef MaterialUniformPackingFunction =
     );
 
 class MaterialPreviewPackingContext {
-  const MaterialPreviewPackingContext({required this.previewExtent});
+  const MaterialPreviewPackingContext({
+    required this.width,
+    required this.height,
+  });
 
-  final int previewExtent;
+  final int width;
+  final int height;
 }
 
 class MaterialNodePreviewSupport {
@@ -292,12 +296,7 @@ class MaterialNodePreviewSupportRegistry {
     MaterialCompiledNodePass pass,
     MaterialPreviewPackingContext context,
   ) {
-    return _floatBlock4(
-      _parameter(pass, 'intensity').floatValue ?? 1,
-      0,
-      0,
-      0,
-    );
+    return _floatBlock4(_parameter(pass, 'intensity').floatValue ?? 1, 0, 0, 0);
   }
 
   static Uint8List _packBlurUniforms(
@@ -329,12 +328,7 @@ class MaterialNodePreviewSupportRegistry {
     MaterialCompiledNodePass pass,
     MaterialPreviewPackingContext context,
   ) {
-    return _floatBlock4(
-      _parameter(pass, 'intensity').floatValue ?? 1,
-      0,
-      0,
-      0,
-    );
+    return _floatBlock4(_parameter(pass, 'intensity').floatValue ?? 1, 0, 0, 0);
   }
 
   static Uint8List _packWarpDirectionalUniforms(
@@ -354,8 +348,8 @@ class MaterialNodePreviewSupportRegistry {
     MaterialPreviewPackingContext context,
   ) {
     final data = ByteData(32)
-      ..setFloat32(0, context.previewExtent.toDouble(), Endian.little)
-      ..setFloat32(4, context.previewExtent.toDouble(), Endian.little)
+      ..setFloat32(0, context.width.toDouble(), Endian.little)
+      ..setFloat32(4, context.height.toDouble(), Endian.little)
       ..setFloat32(
         8,
         _parameter(pass, 'intensity').floatValue ?? 1,
@@ -382,8 +376,8 @@ class MaterialNodePreviewSupportRegistry {
     MaterialPreviewPackingContext context,
   ) {
     return _floatBlock4(
-      context.previewExtent.toDouble(),
-      context.previewExtent.toDouble(),
+      context.width.toDouble(),
+      context.height.toDouble(),
       _parameter(pass, 'azimuth').floatValue ?? 0,
       _parameter(pass, 'elevation').floatValue ?? 1,
     );

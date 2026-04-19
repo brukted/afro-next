@@ -7,20 +7,13 @@ class VulkanMaterialBackendPlanner {
 
   VulkanMaterialBackendPlan createPlan(MaterialCompiledGraph graph) {
     final passes = graph.nodePasses
-        .map(
-          (pass) => _createPassPlan(
-            graph: graph,
-            pass: pass,
-          ),
-        )
+        .map((pass) => _createPassPlan(graph: graph, pass: pass))
         .toList(growable: false);
 
     return VulkanMaterialBackendPlan(
       graphId: graph.graphId,
       passes: passes,
-      passesByNodeId: {
-        for (final pass in passes) pass.nodeId: pass,
-      },
+      passesByNodeId: {for (final pass in passes) pass.nodeId: pass},
       previewTargetIdsByNodeId: {
         for (final pass in passes) pass.nodeId: pass.outputTarget.id,
       },
@@ -81,6 +74,7 @@ class VulkanMaterialBackendPlanner {
         sampledInputCount: pass.textureInputs.length,
       ),
       isSupported: isSupported,
+      resolvedOutputSize: pass.resolvedOutputSize,
     );
   }
 

@@ -12,6 +12,8 @@ import '../node_editor/node_editor_models.dart';
 import '../node_editor/node_editor_viewport.dart';
 import 'material_graph_controller.dart';
 import 'material_node_definition.dart';
+import 'material_output_size.dart';
+import 'runtime/material_execution_ir.dart';
 
 class MaterialGraphPanel extends StatefulWidget {
   const MaterialGraphPanel({super.key, required this.controller});
@@ -114,6 +116,21 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                const SizedBox(width: 6),
+                Chip(
+                  label: Text(_resolvedGraphSizeLabel),
+                  avatar: const Icon(Icons.aspect_ratio_outlined, size: 13),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 6),
+                TextButton(
+                  onPressed: () => _showOutputSizeSettingsDialog(context),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  child: const Text('Output Size'),
+                ),
                 if (pendingConnection != null)
                   TextButton(
                     onPressed: _controller.cancelPendingConnection,
@@ -166,10 +183,21 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                       canvasSize: canvasSize,
                     );
                   },
+                  onRequestSocketMenu: (node, socket, globalPosition) {
+                    return _showSocketMenu(
+                      context: context,
+                      node: node,
+                      socket: socket,
+                      globalPosition: globalPosition,
+                    );
+                  },
                   buildNodeBody: (context, nodeViewModel) {
                     return MaterialNodePreviewCard(
                       title: nodeViewModel.title,
                       preview: nodeViewModel.bodyData,
+                      resolvedOutputSizeLabel: _resolvedNodeSizeLabel(
+                        nodeViewModel.id,
+                      ),
                     );
                   },
                 );
@@ -325,6 +353,40 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
     }
   }
 
+  Future<void> _showSocketMenu({
+    required BuildContext context,
+    required NodeEditorNodeViewModel node,
+    required NodeEditorSocketViewModel socket,
+    required Offset globalPosition,
+  }) async {
+    if (!socket.isConnected) {
+      return;
+    }
+
+    final action = await showMenu<String>(
+      context: context,
+      position: _menuPosition(context, globalPosition),
+      items: const [
+        PopupMenuItem<String>(
+          value: 'disconnect',
+          height: 30,
+          child: Text('Disconnect'),
+        ),
+      ],
+    );
+    if (!context.mounted || action == null) {
+      return;
+    }
+
+    switch (action) {
+      case 'disconnect':
+        _controller.disconnectSocket(nodeId: node.id, propertyId: socket.id);
+        return;
+      default:
+        return;
+    }
+  }
+
   void _focusToCenter(Size canvasSize) {
     final nodes = _buildNodeViewModels();
     if (nodes.isEmpty) {
@@ -366,6 +428,314 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
       ),
     );
   }
+
+  String get _resolvedGraphSizeLabel {
+    return _resolvedSizeLabel(
+      _controller.resolvedGraphOutputSize,
+      fallback: 'Graph size',
+    );
+  }
+
+  String _resolvedNodeSizeLabel(String nodeId) {
+    return _resolvedSizeLabel(
+      _controller.resolvedOutputSizeForNode(nodeId),
+      fallback: 'Pending',
+    );
+  }
+
+  String _resolvedSizeLabel(
+    MaterialResolvedOutputSize? resolved, {
+    required String fallback,
+  }) {
+    return resolved?.extentLabel ?? fallback;
+  }
+
+  Future<void> _showOutputSizeSettingsDialog(BuildContext context) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final graphSettings = _controller.graphOutputSizeSettings;
+                final sessionSize = _controller.sessionParentOutputSize;
+                final resolved = _controller.resolvedGraphOutputSize;
+                final range =
+                    graphSettings.mode == MaterialOutputSizeMode.absolute
+                    ? (
+                        min: materialOutputSizeMinLog2,
+                        max: materialOutputSizeMaxLog2,
+                      )
+                    : (
+                        min: materialOutputSizeRelativeMinDelta,
+                        max: materialOutputSizeRelativeMaxDelta,
+                      );
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Output Size Settings',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      _OutputSizeSection(
+                        title: 'Graph',
+                        subtitle: resolved == null
+                            ? null
+                            : 'Resolved: ${resolved.width}x${resolved.height}',
+                        mode: graphSettings.mode,
+                        value: graphSettings.value,
+                        min: range.min,
+                        max: range.max,
+                        onModeChanged: _controller.updateGraphOutputSizeMode,
+                        onValueChanged: _controller.updateGraphOutputSizeValue,
+                      ),
+                      const SizedBox(height: 14),
+                      _OutputSizeSection(
+                        title: 'Editor Parent Size',
+                        subtitle:
+                            'Used when the graph resolves upward to the editor session.',
+                        mode: MaterialOutputSizeMode.absolute,
+                        value: sessionSize,
+                        min: materialOutputSizeMinLog2,
+                        max: materialOutputSizeMaxLog2,
+                        modeEnabled: false,
+                        onModeChanged: (_) {},
+                        onValueChanged:
+                            _controller.updateSessionParentOutputSize,
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('Close'),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _OutputSizeSection extends StatelessWidget {
+  const _OutputSizeSection({
+    required this.title,
+    required this.mode,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onModeChanged,
+    required this.onValueChanged,
+    this.subtitle,
+    this.modeEnabled = true,
+  });
+
+  final String title;
+  final String? subtitle;
+  final MaterialOutputSizeMode mode;
+  final MaterialOutputSizeValue value;
+  final int min;
+  final int max;
+  final bool modeEnabled;
+  final ValueChanged<MaterialOutputSizeMode> onModeChanged;
+  final ValueChanged<MaterialOutputSizeValue> onValueChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: theme.textTheme.titleSmall),
+            if (subtitle != null) ...[
+              const SizedBox(height: 2),
+              Text(
+                subtitle!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            DropdownButtonFormField<MaterialOutputSizeMode>(
+              initialValue: mode,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Mode',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              items: materialOutputSizeModeOptions
+                  .map(
+                    (option) => DropdownMenuItem<MaterialOutputSizeMode>(
+                      value: materialOutputSizeModeFromEnumValue(option.value),
+                      child: Text(option.label),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: !modeEnabled
+                  ? null
+                  : (nextValue) {
+                      if (nextValue != null) {
+                        onModeChanged(nextValue);
+                      }
+                    },
+            ),
+            const SizedBox(height: 10),
+            _OutputSizeVectorEditor(
+              value: value,
+              min: min,
+              max: max,
+              onChanged: onValueChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OutputSizeVectorEditor extends StatelessWidget {
+  const _OutputSizeVectorEditor({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final MaterialOutputSizeValue value;
+  final int min;
+  final int max;
+  final ValueChanged<MaterialOutputSizeValue> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _OutputSizeIntField(
+            label: 'Width',
+            value: value.widthLog2,
+            min: min,
+            max: max,
+            onChanged: (nextValue) {
+              onChanged(value.copyWith(widthLog2: nextValue));
+            },
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _OutputSizeIntField(
+            label: 'Height',
+            value: value.heightLog2,
+            min: min,
+            max: max,
+            onChanged: (nextValue) {
+              onChanged(value.copyWith(heightLog2: nextValue));
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OutputSizeIntField extends StatefulWidget {
+  const _OutputSizeIntField({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  @override
+  State<_OutputSizeIntField> createState() => _OutputSizeIntFieldState();
+}
+
+class _OutputSizeIntFieldState extends State<_OutputSizeIntField> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.value.toString());
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void didUpdateWidget(covariant _OutputSizeIntField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_focusNode.hasFocus) {
+      return;
+    }
+    final nextText = widget.value.toString();
+    if (_controller.text != nextText) {
+      _controller.text = nextText;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: _controller,
+      focusNode: _focusNode,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      ),
+      keyboardType: const TextInputType.numberWithOptions(signed: true),
+      onTapOutside: (_) => _submit(),
+      onFieldSubmitted: (_) => _submit(),
+    );
+  }
+
+  void _submit() {
+    final parsed = int.tryParse(_controller.text.trim());
+    final nextValue = (parsed ?? widget.value).clamp(widget.min, widget.max);
+    _controller.text = nextValue.toString();
+    if (nextValue != widget.value) {
+      widget.onChanged(nextValue);
+    }
+  }
 }
 
 class _NodeDefinitionLabel extends StatelessWidget {
@@ -394,11 +764,13 @@ class MaterialNodePreviewCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.preview,
+    this.resolvedOutputSizeLabel = '',
     this.previewTextureBuilder,
   });
 
   final String title;
   final PreviewRenderTarget? preview;
+  final String resolvedOutputSizeLabel;
   final Widget Function(BuildContext context, PreviewTextureDescriptor texture)?
   previewTextureBuilder;
 
@@ -478,6 +850,19 @@ class MaterialNodePreviewCard extends StatelessWidget {
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ),
+                          if (preview != null)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(
+                                resolvedOutputSizeLabel,
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.72,
+                                      ),
+                                    ),
+                              ),
+                            ),
                           if (preview != null)
                             Text(
                               preview!.status.name,

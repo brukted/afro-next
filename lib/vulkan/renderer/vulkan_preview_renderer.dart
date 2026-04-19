@@ -33,10 +33,8 @@ class VulkanPreviewRendererFacade implements RendererFacade {
     this.workspaceController,
     VulkanMaterialBackendPlanner planner = const VulkanMaterialBackendPlanner(),
     PreviewTextureRegistry? textureRegistry,
-    int previewExtent = 192,
   }) : _planner = planner,
        _textureRegistry = textureRegistry ?? PreviewTextureRegistry(),
-       _previewExtent = previewExtent,
        _fallback = PlaceholderVulkanRendererFacade(
          bootstrapper: bootstrapper,
          planner: planner,
@@ -46,7 +44,6 @@ class VulkanPreviewRendererFacade implements RendererFacade {
   final WorkspaceController? workspaceController;
   final VulkanMaterialBackendPlanner _planner;
   final PreviewTextureRegistry _textureRegistry;
-  final int _previewExtent;
   final PlaceholderVulkanRendererFacade _fallback;
 
   _VulkanMaterialExecutor? _executor;
@@ -68,7 +65,6 @@ class VulkanPreviewRendererFacade implements RendererFacade {
           _executor ??
           _VulkanMaterialExecutor(
             textureRegistry: _textureRegistry,
-            previewExtent: _previewExtent,
             workspaceController: workspaceController,
           );
       await executor.initialize();
@@ -80,7 +76,7 @@ class VulkanPreviewRendererFacade implements RendererFacade {
             'Rendering node previews with offscreen Vulkan fragment passes.',
         details: <String>[
           'Runtime: ${executor.loadedLibraryPath}',
-          'Preview extent: ${_previewExtent}x$_previewExtent',
+          'Preview sizing: per-node output size',
           ...baseState.details,
         ],
         surfacePlan: baseState.surfacePlan,
@@ -213,14 +209,11 @@ class VulkanPreviewRendererFacade implements RendererFacade {
 class _VulkanMaterialExecutor {
   _VulkanMaterialExecutor({
     required PreviewTextureRegistry textureRegistry,
-    required int previewExtent,
     WorkspaceController? workspaceController,
   }) : _textureRegistry = textureRegistry,
-       _previewExtent = previewExtent,
        _workspaceController = workspaceController;
 
   final PreviewTextureRegistry _textureRegistry;
-  final int _previewExtent;
   final WorkspaceController? _workspaceController;
 
   late final VulkanRuntimeBindings _vk;
@@ -235,7 +228,8 @@ class _VulkanMaterialExecutor {
 
   final Map<String, PreviewRenderTarget> _previewTargetsByKey =
       <String, PreviewRenderTarget>{};
-  final Map<String, Uint8List> _outputBytesByKey = <String, Uint8List>{};
+  final Map<String, _RenderedImageData> _outputImagesByKey =
+      <String, _RenderedImageData>{};
   final Map<String, Uint8List> _shaderBytesByAssetPath = <String, Uint8List>{};
 
   String get loadedLibraryPath => _vk.loadedLibraryPath;
@@ -261,7 +255,7 @@ class _VulkanMaterialExecutor {
     }
     await _textureRegistry.clear();
     _previewTargetsByKey.clear();
-    _outputBytesByKey.clear();
+    _outputImagesByKey.clear();
     _shaderBytesByAssetPath.clear();
 
     if (_linearSampler != nullptr) {
@@ -324,13 +318,13 @@ class _VulkanMaterialExecutor {
       }
 
       try {
-        final outputBytes = await _renderPass(graph: graph, pass: compiledPass);
-        _outputBytesByKey[nodeKey] = outputBytes;
+        final outputImage = await _renderPass(graph: graph, pass: compiledPass);
+        _outputImagesByKey[nodeKey] = outputImage;
         final descriptor = await _textureRegistry.updateTexture(
           key: nodeKey,
-          width: _previewExtent,
-          height: _previewExtent,
-          bgraBytes: outputBytes,
+          width: outputImage.width,
+          height: outputImage.height,
+          bgraBytes: outputImage.bytes,
         );
         final target = descriptor == null
             ? PreviewRenderTarget(
@@ -406,11 +400,11 @@ class _VulkanMaterialExecutor {
         .toList(growable: false);
     for (final key in staleKeys) {
       _previewTargetsByKey.remove(key);
-      _outputBytesByKey.remove(key);
+      _outputImagesByKey.remove(key);
     }
   }
 
-  Future<Uint8List> _renderPass({
+  Future<_RenderedImageData> _renderPass({
     required MaterialCompiledGraph graph,
     required MaterialCompiledNodePass pass,
   }) async {
@@ -422,43 +416,50 @@ class _VulkanMaterialExecutor {
     );
     final uniformBytes = MaterialNodePreviewSupportRegistry.packUniforms(
       pass,
-      context: MaterialPreviewPackingContext(previewExtent: _previewExtent),
+      context: MaterialPreviewPackingContext(
+        width: pass.resolvedOutputSize.width,
+        height: pass.resolvedOutputSize.height,
+      ),
     );
 
     final inputs = <_TextureUpload>[];
     for (final input in pass.textureInputs) {
-      final sourceBytes = input.sourceNodeId == null
+      final sourceImage = input.sourceNodeId == null
           ? null
-          : _outputBytesByKey[_nodeKey(graph.graphId, input.sourceNodeId!)];
-      final generatedTexture = sourceBytes == null
-          ? await _generatedTextureBytes(input.fallbackValue)
+          : _outputImagesByKey[_nodeKey(graph.graphId, input.sourceNodeId!)];
+      final generatedTexture = sourceImage == null
+          ? await _generatedTextureBytes(
+              input.fallbackValue,
+              targetWidth: pass.resolvedOutputSize.width,
+              targetHeight: pass.resolvedOutputSize.height,
+            )
           : null;
       inputs.add(
         _TextureUpload(
           bindingKey: input.bindingKey,
           bytes:
-              sourceBytes ??
+              sourceImage?.bytes ??
               generatedTexture?.bytes ??
               _defaultTextureBytes(input.fallbackValue),
-          width: sourceBytes != null
-              ? _previewExtent
-              : generatedTexture?.width ?? 1,
-          height: sourceBytes != null
-              ? _previewExtent
-              : generatedTexture?.height ?? 1,
+          width: sourceImage?.width ?? generatedTexture?.width ?? 1,
+          height: sourceImage?.height ?? generatedTexture?.height ?? 1,
         ),
       );
     }
 
     final invocation = _OffscreenRenderInvocation(
-      width: _previewExtent,
-      height: _previewExtent,
+      width: pass.resolvedOutputSize.width,
+      height: pass.resolvedOutputSize.height,
       vertexShaderBytes: vertexShader,
       fragmentShaderBytes: fragmentShader,
       uniformBytes: uniformBytes,
       inputs: inputs,
     );
-    return _executeInvocation(invocation);
+    return _RenderedImageData(
+      bytes: await _executeInvocation(invocation),
+      width: pass.resolvedOutputSize.width,
+      height: pass.resolvedOutputSize.height,
+    );
   }
 
   Uint8List _defaultTextureBytes(GraphValueData value) {
@@ -495,12 +496,14 @@ class _VulkanMaterialExecutor {
     }
   }
 
-  Future<({Uint8List bytes, int width, int height})?> _generatedTextureBytes(
-    GraphValueData value,
-  ) async {
+  Future<_RenderedImageData?> _generatedTextureBytes(
+    GraphValueData value, {
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
     switch (value.valueType) {
       case GraphValueType.colorBezierCurve:
-        return (
+        return _RenderedImageData(
           bytes: _curveLutTextureBytes(
             value.curveValue ?? GraphColorCurveData.identity(),
           ),
@@ -508,7 +511,7 @@ class _VulkanMaterialExecutor {
           height: 1,
         );
       case GraphValueType.gradient:
-        return (
+        return _RenderedImageData(
           bytes: _gradientTextureBytes(
             value.gradientValue ?? GraphGradientData.identity(),
           ),
@@ -516,9 +519,17 @@ class _VulkanMaterialExecutor {
           height: 256,
         );
       case GraphValueType.workspaceResource:
-        return _workspaceResourceTextureBytes(value.asWorkspaceResource());
+        return _workspaceResourceTextureBytes(
+          value.asWorkspaceResource(),
+          targetWidth: targetWidth,
+          targetHeight: targetHeight,
+        );
       case GraphValueType.textBlock:
-        return _textTextureBytes(value.asTextBlock());
+        return _textTextureBytes(
+          value.asTextBlock(),
+          targetWidth: targetWidth,
+          targetHeight: targetHeight,
+        );
       case GraphValueType.integer:
       case GraphValueType.integer2:
       case GraphValueType.integer3:
@@ -606,8 +617,11 @@ class _VulkanMaterialExecutor {
     return stops.last.color.clone();
   }
 
-  Future<({Uint8List bytes, int width, int height})?>
-  _workspaceResourceTextureBytes(String resourceId) async {
+  Future<_RenderedImageData?> _workspaceResourceTextureBytes(
+    String resourceId, {
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
     if (resourceId.isEmpty) {
       return null;
     }
@@ -625,7 +639,11 @@ class _VulkanMaterialExecutor {
         if (image == null) {
           return null;
         }
-        return _rasterImageTextureBytes(base64Decode(image.encodedBytesBase64));
+        return _rasterImageTextureBytes(
+          base64Decode(image.encodedBytesBase64),
+          targetWidth: targetWidth,
+          targetHeight: targetHeight,
+        );
       case WorkspaceResourceKind.svg:
         final svgDocument = workspaceController.svgDocumentByResourceId(
           resourceId,
@@ -633,7 +651,11 @@ class _VulkanMaterialExecutor {
         if (svgDocument == null) {
           return null;
         }
-        return _svgTextureBytes(svgDocument.svgText);
+        return _svgTextureBytes(
+          svgDocument.svgText,
+          targetWidth: targetWidth,
+          targetHeight: targetHeight,
+        );
       case WorkspaceResourceKind.folder:
       case WorkspaceResourceKind.materialGraph:
       case WorkspaceResourceKind.mathGraph:
@@ -641,17 +663,25 @@ class _VulkanMaterialExecutor {
     }
   }
 
-  Future<({Uint8List bytes, int width, int height})> _rasterImageTextureBytes(
-    Uint8List encodedBytes,
-  ) async {
+  Future<_RenderedImageData> _rasterImageTextureBytes(
+    Uint8List encodedBytes, {
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
     final codec = await ui.instantiateImageCodec(encodedBytes);
     final frame = await codec.getNextFrame();
-    return _imageToSquareTextureBytes(frame.image);
+    return _imageToTextureBytes(
+      frame.image,
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
   }
 
-  Future<({Uint8List bytes, int width, int height})> _svgTextureBytes(
-    String svgText,
-  ) async {
+  Future<_RenderedImageData> _svgTextureBytes(
+    String svgText, {
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
     final loadedPicture = await svg.vg.loadPicture(
       svg.SvgStringLoader(svgText),
       null,
@@ -661,18 +691,22 @@ class _VulkanMaterialExecutor {
         loadedPicture.picture,
         width: loadedPicture.size.width,
         height: loadedPicture.size.height,
+        targetWidth: targetWidth,
+        targetHeight: targetHeight,
       );
     } finally {
       loadedPicture.picture.dispose();
     }
   }
 
-  Future<({Uint8List bytes, int width, int height})> _textTextureBytes(
-    GraphTextData textData,
-  ) async {
+  Future<_RenderedImageData> _textTextureBytes(
+    GraphTextData textData, {
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
-    final size = ui.Size(_previewExtent.toDouble(), _previewExtent.toDouble());
+    final size = ui.Size(targetWidth.toDouble(), targetHeight.toDouble());
     final backgroundPaint = ui.Paint()
       ..color = Vector4ColorAdapter.toFlutterColor(textData.backgroundColor);
     canvas.drawRect(ui.Offset.zero & size, backgroundPaint);
@@ -701,29 +735,31 @@ class _VulkanMaterialExecutor {
     painter.paint(canvas, offset);
 
     final image = await recorder.endRecording().toImage(
-      _previewExtent,
-      _previewExtent,
+      targetWidth,
+      targetHeight,
     );
     try {
       final rgbaBytes = await _rawRgbaBytes(image);
-      return (
+      return _RenderedImageData(
         bytes: _rgbaToBgra(rgbaBytes),
-        width: _previewExtent,
-        height: _previewExtent,
+        width: targetWidth,
+        height: targetHeight,
       );
     } finally {
       image.dispose();
     }
   }
 
-  Future<({Uint8List bytes, int width, int height})> _imageToSquareTextureBytes(
-    ui.Image image,
-  ) async {
+  Future<_RenderedImageData> _imageToTextureBytes(
+    ui.Image image, {
+    required int targetWidth,
+    required int targetHeight,
+  }) async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     final destinationSize = ui.Size(
-      _previewExtent.toDouble(),
-      _previewExtent.toDouble(),
+      targetWidth.toDouble(),
+      targetHeight.toDouble(),
     );
     final fittedSizes = painting.applyBoxFit(
       painting.BoxFit.contain,
@@ -740,34 +776,35 @@ class _VulkanMaterialExecutor {
       outputRect,
       ui.Paint(),
     );
-    final squareImage = await recorder.endRecording().toImage(
-      _previewExtent,
-      _previewExtent,
+    final fittedImage = await recorder.endRecording().toImage(
+      targetWidth,
+      targetHeight,
     );
     try {
-      final rgbaBytes = await _rawRgbaBytes(squareImage);
-      return (
+      final rgbaBytes = await _rawRgbaBytes(fittedImage);
+      return _RenderedImageData(
         bytes: _rgbaToBgra(rgbaBytes),
-        width: _previewExtent,
-        height: _previewExtent,
+        width: targetWidth,
+        height: targetHeight,
       );
     } finally {
-      squareImage.dispose();
+      fittedImage.dispose();
       image.dispose();
     }
   }
 
-  Future<({Uint8List bytes, int width, int height})>
-  _pictureToSquareTextureBytes(
+  Future<_RenderedImageData> _pictureToSquareTextureBytes(
     ui.Picture picture, {
     required double width,
     required double height,
+    required int targetWidth,
+    required int targetHeight,
   }) async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     final destinationSize = ui.Size(
-      _previewExtent.toDouble(),
-      _previewExtent.toDouble(),
+      targetWidth.toDouble(),
+      targetHeight.toDouble(),
     );
     final safeWidth = width <= 0 ? destinationSize.width : width;
     final safeHeight = height <= 0 ? destinationSize.height : height;
@@ -786,15 +823,15 @@ class _VulkanMaterialExecutor {
     canvas.drawPicture(picture);
     canvas.restore();
     final image = await recorder.endRecording().toImage(
-      _previewExtent,
-      _previewExtent,
+      targetWidth,
+      targetHeight,
     );
     try {
       final rgbaBytes = await _rawRgbaBytes(image);
-      return (
+      return _RenderedImageData(
         bytes: _rgbaToBgra(rgbaBytes),
-        width: _previewExtent,
-        height: _previewExtent,
+        width: targetWidth,
+        height: targetHeight,
       );
     } finally {
       image.dispose();
@@ -2216,6 +2253,18 @@ extension on Array<Uint8> {
       nullIndex == -1 ? bytes : bytes.take(nullIndex),
     );
   }
+}
+
+class _RenderedImageData {
+  const _RenderedImageData({
+    required this.bytes,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List bytes;
+  final int width;
+  final int height;
 }
 
 class _OffscreenRenderInvocation {

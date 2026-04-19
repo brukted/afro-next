@@ -11,6 +11,7 @@ import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import '../material_graph/material_graph_controller.dart';
+import '../material_graph/material_output_size.dart';
 import '../workspace/models/workspace_models.dart';
 import '../workspace/workspace_controller.dart';
 import 'color_curve_editor.dart';
@@ -186,18 +187,40 @@ class _EditablePropertyField extends StatelessWidget {
           values: (property.value as List<int>)
               .map((value) => value.toDouble())
               .toList(),
-          labels: const ['X', 'Y'],
+          labels: definition.valueUnit == GraphValueUnit.power2
+              ? const ['Width', 'Height']
+              : const ['X', 'Y'],
           integer: true,
           min: definition.min?.toDouble(),
           max: definition.max?.toDouble(),
           step: definition.step ?? 1,
-          onChanged: (values) => controller.updatePropertyValue(
-            nodeId: nodeId,
-            propertyId: property.id,
-            value: GraphValueData.integer2(
+          onChanged: (values) {
+            final nextValue = MaterialOutputSizeValue.fromInteger2(
               values.map((value) => value.round()).toList(),
-            ),
-          ),
+            );
+            if (controller.updateOutputSizeProperty(
+              nodeId: nodeId,
+              propertyKey: property.definition.key,
+              value: GraphValueData.integer2(nextValue.asInteger2),
+            )) {
+              return;
+            }
+            controller.updatePropertyValue(
+              nodeId: nodeId,
+              propertyId: property.id,
+              value: GraphValueData.integer2(nextValue.asInteger2),
+            );
+          },
+          footer: definition.valueUnit == GraphValueUnit.power2
+              ? _PowerOfTwoSummary(
+                  value: MaterialOutputSizeValue.fromInteger2(
+                    (property.value as List<int>).toList(growable: false),
+                  ),
+                  mode: controller
+                      .outputSizeSettingsForNode(controller.nodeById(nodeId)!)
+                      .mode,
+                )
+              : null,
         ),
         GraphValueType.integer3 => _VectorNumberEditor(
           values: (property.value as List<int>)
@@ -386,6 +409,13 @@ class _EditablePropertyField extends StatelessWidget {
               .toList(growable: false),
           onChanged: (nextValue) {
             if (nextValue == null) {
+              return;
+            }
+            if (controller.updateOutputSizeProperty(
+              nodeId: nodeId,
+              propertyKey: property.definition.key,
+              value: GraphValueData.enumChoice(nextValue),
+            )) {
               return;
             }
             controller.updatePropertyValue(
@@ -969,6 +999,7 @@ class _VectorNumberEditor extends StatelessWidget {
     required this.onChanged,
     this.min,
     this.max,
+    this.footer,
   });
 
   final List<double> values;
@@ -978,28 +1009,59 @@ class _VectorNumberEditor extends StatelessWidget {
   final double? max;
   final double step;
   final ValueChanged<List<double>> onChanged;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: List.generate(values.length, (index) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: index == values.length - 1 ? 0 : 6),
-          child: _NumberField(
-            label: labels[index],
-            value: values[index],
-            integer: integer,
-            min: min,
-            max: max,
-            step: step,
-            onChanged: (nextValue) {
-              final updated = List<double>.from(values);
-              updated[index] = nextValue;
-              onChanged(updated);
-            },
-          ),
-        );
-      }),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ...List.generate(values.length, (index) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index == values.length - 1 ? 0 : 6,
+            ),
+            child: _NumberField(
+              label: labels[index],
+              value: values[index],
+              integer: integer,
+              min: min,
+              max: max,
+              step: step,
+              onChanged: (nextValue) {
+                final updated = List<double>.from(values);
+                updated[index] = nextValue;
+                onChanged(updated);
+              },
+            ),
+          );
+        }),
+        if (footer != null) ...[const SizedBox(height: 6), footer!],
+      ],
+    );
+  }
+}
+
+class _PowerOfTwoSummary extends StatelessWidget {
+  const _PowerOfTwoSummary({required this.value, required this.mode});
+
+  final MaterialOutputSizeValue value;
+  final MaterialOutputSizeMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final widthLabel = mode == MaterialOutputSizeMode.absolute
+        ? '${value.widthLog2} = ${materialOutputSizePixelsForLog2(value.widthLog2)} px'
+        : _relativePowerOfTwoLabel(value.widthLog2);
+    final heightLabel = mode == MaterialOutputSizeMode.absolute
+        ? '${value.heightLog2} = ${materialOutputSizePixelsForLog2(value.heightLog2)} px'
+        : _relativePowerOfTwoLabel(value.heightLog2);
+    return Text(
+      'Width $widthLabel, Height $heightLabel',
+      style: theme.textTheme.bodySmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }
@@ -1180,10 +1242,12 @@ class _NumberFieldState extends State<_NumberField> {
       children: [
         if (widget.label != null)
           SizedBox(
-            width: 18,
+            width: _numberFieldLabelWidth(widget.label!),
             child: Text(
               widget.label!,
               style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         if (widget.label != null) const SizedBox(width: 6),
@@ -1703,6 +1767,24 @@ String _formatNumber(double value, bool integer) {
 
   final text = value.toStringAsFixed(3);
   return text.replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
+double _numberFieldLabelWidth(String label) {
+  if (label.length <= 1) {
+    return 18;
+  }
+  if (label.length <= 3) {
+    return 26;
+  }
+  return 44;
+}
+
+String _relativePowerOfTwoLabel(int delta) {
+  if (delta == 0) {
+    return 'inherits base size';
+  }
+  final sign = delta > 0 ? '+' : '';
+  return '$sign$delta => 2^$delta multiplier';
 }
 
 List<double> _vector2ToList(Vector2 value) => [value.x, value.y];

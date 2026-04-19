@@ -4,16 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vmath;
 
 import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
+import 'package:eyecandy/features/material_graph/material_output_size.dart';
+import 'package:eyecandy/features/material_graph/runtime/material_execution_ir.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
 import 'package:eyecandy/shared/ids/id_factory.dart';
 
 void main() {
   test('compiles a graph into topologically ordered fragment passes', () {
-    final catalog = MaterialGraphCatalog(IdFactory());
+    final catalog = _buildCatalog();
     final graph = catalog.createStarterGraph(name: 'Test Graph');
-    final compiler = MaterialGraphCompiler(catalog: catalog);
-
-    final compiled = compiler.compile(graph);
+    final compiled = _compileGraph(catalog, graph);
     final order = compiled.topologicalNodeIds;
     final solidColor = graph.nodes.firstWhere(
       (node) => node.definitionId == 'solid_color_node',
@@ -21,11 +21,21 @@ void main() {
     final circle = graph.nodes.firstWhere(
       (node) => node.definitionId == 'circle_node',
     );
-    final mix = graph.nodes.firstWhere((node) => node.definitionId == 'mix_node');
+    final mix = graph.nodes.firstWhere(
+      (node) => node.definitionId == 'mix_node',
+    );
     final channelSelect = graph.nodes.firstWhere(
       (node) => node.definitionId == 'channel_select_node',
     );
 
+    expect(
+      order,
+      containsAll(<String>[solidColor.id, circle.id, mix.id, channelSelect.id]),
+    );
+    expect(order.indexOf(solidColor.id), greaterThanOrEqualTo(0));
+    expect(order.indexOf(circle.id), greaterThanOrEqualTo(0));
+    expect(order.indexOf(mix.id), greaterThanOrEqualTo(0));
+    expect(order.indexOf(channelSelect.id), greaterThanOrEqualTo(0));
     expect(order.indexOf(solidColor.id), lessThan(order.indexOf(mix.id)));
     expect(order.indexOf(circle.id), lessThan(order.indexOf(mix.id)));
     expect(order.indexOf(mix.id), lessThan(order.indexOf(channelSelect.id)));
@@ -38,13 +48,15 @@ void main() {
       hasLength(2),
     );
     expect(
-      mixPass.parameterBindings.any((binding) => binding.bindingKey == 'blendMode'),
+      mixPass.parameterBindings.any(
+        (binding) => binding.bindingKey == 'blendMode',
+      ),
       isTrue,
     );
   });
 
   test('compiler preserves generated LUT textures and matrix parameters', () {
-    final catalog = MaterialGraphCatalog(IdFactory());
+    final catalog = _buildCatalog();
     final levels = catalog.instantiateNode(
       definitionId: 'levels_node',
       position: vmath.Vector2.zero(),
@@ -62,12 +74,22 @@ void main() {
       name: 'Expanded Graph',
       nodes: [levels, curve, transform],
       links: [
-        _connect(fromNode: levels, fromKey: '_output', toNode: curve, toKey: 'MainTex'),
-        _connect(fromNode: curve, fromKey: '_output', toNode: transform, toKey: 'MainTex'),
+        _connect(
+          fromNode: levels,
+          fromKey: '_output',
+          toNode: curve,
+          toKey: 'MainTex',
+        ),
+        _connect(
+          fromNode: curve,
+          fromKey: '_output',
+          toNode: transform,
+          toKey: 'MainTex',
+        ),
       ],
     );
 
-    final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
+    final compiled = _compileGraph(catalog, graph);
     final curvePass = compiled.passForNode(curve.id)!;
     final transformPass = compiled.passForNode(transform.id)!;
 
@@ -78,7 +100,10 @@ void main() {
     ]);
     expect(curvePass.textureInputs.first.isConnected, isTrue);
     expect(curvePass.textureInputs.last.isConnected, isFalse);
-    expect(curvePass.textureInputs.last.valueType, GraphValueType.colorBezierCurve);
+    expect(
+      curvePass.textureInputs.last.valueType,
+      GraphValueType.colorBezierCurve,
+    );
 
     final rotationBinding = transformPass.parameterBindings.firstWhere(
       (binding) => binding.bindingKey == 'rotation',
@@ -98,7 +123,7 @@ void main() {
   });
 
   test('compiler preserves workspace assets and text-generated textures', () {
-    final catalog = MaterialGraphCatalog(IdFactory());
+    final catalog = _buildCatalog();
     final image = catalog.instantiateNode(
       definitionId: 'image_node',
       position: vmath.Vector2.zero(),
@@ -125,23 +150,250 @@ void main() {
       ],
     );
 
-    final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
+    final compiled = _compileGraph(catalog, graph);
     final imagePass = compiled.passForNode(image.id)!;
     final textPass = compiled.passForNode(text.id)!;
     final gradientPass = compiled.passForNode(gradientMap.id)!;
 
     expect(imagePass.textureInputs.single.bindingKey, 'MainTex');
-    expect(imagePass.textureInputs.single.valueType, GraphValueType.workspaceResource);
+    expect(
+      imagePass.textureInputs.single.valueType,
+      GraphValueType.workspaceResource,
+    );
     expect(textPass.textureInputs.single.valueType, GraphValueType.textBlock);
     expect(
-      gradientPass.textureInputs.firstWhere((input) => input.bindingKey == 'ColorLUT').valueType,
+      gradientPass.textureInputs
+          .firstWhere((input) => input.bindingKey == 'ColorLUT')
+          .valueType,
       GraphValueType.gradient,
     );
     expect(
-      gradientPass.textureInputs.firstWhere((input) => input.bindingKey == 'MainTex').isConnected,
+      gradientPass.textureInputs
+          .firstWhere((input) => input.bindingKey == 'MainTex')
+          .isConnected,
       isTrue,
     );
   });
+
+  test('compiler resolves output size inheritance for graph and nodes', () {
+    final catalog = _buildCatalog();
+    final solidColor = catalog.instantiateNode(
+      definitionId: 'solid_color_node',
+      position: vmath.Vector2.zero(),
+    );
+    final blur = catalog.instantiateNode(
+      definitionId: 'blur_node',
+      position: vmath.Vector2(320, 0),
+    );
+    final graph = GraphDocument(
+      id: 'size-graph',
+      name: 'Size Graph',
+      nodes: [
+        _updateNodeOutputSize(solidColor),
+        _updateNodeOutputMode(blur, MaterialOutputSizeMode.relativeToInput),
+      ],
+      links: [
+        _connect(
+          fromNode: solidColor,
+          fromKey: '_output',
+          toNode: blur,
+          toKey: 'MainTex',
+        ),
+      ],
+    );
+
+    final compiled = _compileGraph(
+      catalog,
+      graph,
+      graphOutputSizeSettings: const MaterialOutputSizeSettings(
+        mode: MaterialOutputSizeMode.relativeToParent,
+        value: MaterialOutputSizeValue(widthLog2: 1, heightLog2: 0),
+      ),
+      sessionParentOutputSize: const MaterialOutputSizeValue(
+        widthLog2: 8,
+        heightLog2: 8,
+      ),
+    );
+
+    expect(compiled.resolvedGraphOutputSize.width, 512);
+    expect(compiled.resolvedGraphOutputSize.height, 256);
+    // 10,9 -> 1024x512
+    expect(compiled.passForNode(solidColor.id)!.resolvedOutputSize.width, 1024);
+    expect(compiled.passForNode(solidColor.id)!.resolvedOutputSize.height, 512);
+    expect(compiled.passForNode(blur.id)!.resolvedOutputSize.width, 1024);
+    expect(compiled.passForNode(blur.id)!.resolvedOutputSize.height, 512);
+  });
+
+  test('compiler respects graph absolute output size', () {
+    final catalog = _buildCatalog();
+    final solidColor = catalog.instantiateNode(
+      definitionId: 'solid_color_node',
+      position: vmath.Vector2.zero(),
+    );
+    final graph = GraphDocument(
+      id: 'absolute-graph',
+      name: 'Absolute Graph',
+      nodes: [solidColor],
+      links: const [],
+    );
+
+    final compiled = _compileGraph(
+      catalog,
+      graph,
+      graphOutputSizeSettings: const MaterialOutputSizeSettings(
+        mode: MaterialOutputSizeMode.absolute,
+        value: MaterialOutputSizeValue(widthLog2: 10, heightLog2: 9),
+      ),
+    );
+
+    expect(compiled.resolvedGraphOutputSize.width, 1024);
+    expect(compiled.resolvedGraphOutputSize.height, 512);
+    expect(compiled.passForNode(solidColor.id)!.resolvedOutputSize.width, 1024);
+    expect(compiled.passForNode(solidColor.id)!.resolvedOutputSize.height, 512);
+  });
+
+  test(
+    'compiler falls back to graph size for relative-to-input nodes without links',
+    () {
+      final catalog = _buildCatalog();
+      final blur = _updateNodeOutputMode(
+        catalog.instantiateNode(
+          definitionId: 'blur_node',
+          position: vmath.Vector2.zero(),
+        ),
+        MaterialOutputSizeMode.relativeToInput,
+      );
+      final graph = GraphDocument(
+        id: 'fallback-graph',
+        name: 'Fallback Graph',
+        nodes: [blur],
+        links: const [],
+      );
+
+      final compiled = _compileGraph(
+        catalog,
+        graph,
+        graphOutputSizeSettings: const MaterialOutputSizeSettings(
+          mode: MaterialOutputSizeMode.absolute,
+          value: MaterialOutputSizeValue(widthLog2: 9, heightLog2: 8),
+        ),
+      );
+
+      expect(compiled.passForNode(blur.id)!.resolvedOutputSize.width, 512);
+      expect(compiled.passForNode(blur.id)!.resolvedOutputSize.height, 256);
+    },
+  );
+
+  test('compiler applies relative deltas on inherited input sizes', () {
+    final catalog = _buildCatalog();
+    final source = _updateNodeOutputSize(
+      catalog.instantiateNode(
+        definitionId: 'solid_color_node',
+        position: vmath.Vector2.zero(),
+      ),
+      size: const MaterialOutputSizeValue(widthLog2: 9, heightLog2: 9),
+    );
+    final blur = _updateNodeOutputSize(
+      _updateNodeOutputMode(
+        catalog.instantiateNode(
+          definitionId: 'blur_node',
+          position: vmath.Vector2(320, 0),
+        ),
+        MaterialOutputSizeMode.relativeToInput,
+      ),
+      size: const MaterialOutputSizeValue(widthLog2: 1, heightLog2: -1),
+      updateMode: false,
+    );
+    final graph = GraphDocument(
+      id: 'relative-delta-graph',
+      name: 'Relative Delta Graph',
+      nodes: [source, blur],
+      links: [
+        _connect(
+          fromNode: source,
+          fromKey: '_output',
+          toNode: blur,
+          toKey: 'MainTex',
+        ),
+      ],
+    );
+
+    final compiled = _compileGraph(catalog, graph);
+
+    expect(compiled.passForNode(source.id)!.resolvedOutputSize.width, 512);
+    expect(compiled.passForNode(source.id)!.resolvedOutputSize.height, 512);
+    expect(compiled.passForNode(blur.id)!.resolvedOutputSize.width, 1024);
+    expect(compiled.passForNode(blur.id)!.resolvedOutputSize.height, 256);
+  });
+}
+
+MaterialGraphCatalog _buildCatalog() => MaterialGraphCatalog(IdFactory());
+
+MaterialCompiledGraph _compileGraph(
+  MaterialGraphCatalog catalog,
+  GraphDocument graph, {
+  MaterialOutputSizeSettings graphOutputSizeSettings =
+      const MaterialOutputSizeSettings(),
+  MaterialOutputSizeValue sessionParentOutputSize =
+      const MaterialOutputSizeValue.parentDefault(),
+}) {
+  return MaterialGraphCompiler(catalog: catalog).compile(
+    graph,
+    graphOutputSizeSettings: graphOutputSizeSettings,
+    sessionParentOutputSize: sessionParentOutputSize,
+  );
+}
+
+GraphNodeDocument _updateNodeOutputSize(
+  GraphNodeDocument node, {
+  MaterialOutputSizeValue size = const MaterialOutputSizeValue(
+    widthLog2: 10,
+    heightLog2: 9,
+  ),
+  bool updateMode = true,
+}) {
+  return node.copyWith(
+    properties: node.properties
+        .map((property) {
+          if (updateMode &&
+              property.definitionKey == materialNodeOutputSizeModeKey) {
+            return property.copyWith(
+              value: GraphValueData.enumChoice(
+                materialOutputSizeModeEnumValue(
+                  MaterialOutputSizeMode.absolute,
+                ),
+              ),
+            );
+          }
+          if (property.definitionKey == materialNodeOutputSizeValueKey) {
+            return property.copyWith(
+              value: GraphValueData.integer2(size.asInteger2),
+            );
+          }
+          return property;
+        })
+        .toList(growable: false),
+  );
+}
+
+GraphNodeDocument _updateNodeOutputMode(
+  GraphNodeDocument node,
+  MaterialOutputSizeMode mode,
+) {
+  return node.copyWith(
+    properties: node.properties
+        .map((property) {
+          if (property.definitionKey == materialNodeOutputSizeModeKey) {
+            return property.copyWith(
+              value: GraphValueData.enumChoice(
+                materialOutputSizeModeEnumValue(mode),
+              ),
+            );
+          }
+          return property;
+        })
+        .toList(growable: false),
+  );
 }
 
 GraphLinkDocument _connect({

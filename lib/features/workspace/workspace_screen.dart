@@ -120,7 +120,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       return const _PlaceholderPanel(
         title: 'Math Editor',
         subtitle: 'Math graph resource selected',
-        message: 'Math graph documents are part of the workspace model. The dedicated editor is the next pass.',
+        message:
+            'Math graph documents are part of the workspace model. The dedicated editor is the next pass.',
       );
     }
 
@@ -135,7 +136,9 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
             fit: BoxFit.contain,
             filterQuality: FilterQuality.medium,
             errorBuilder: (context, error, stackTrace) {
-              return const Center(child: Text('Unable to decode image resource.'));
+              return const Center(
+                child: Text('Unable to decode image resource.'),
+              );
             },
           ),
         );
@@ -161,7 +164,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return const _PlaceholderPanel(
       title: 'Editor',
       subtitle: 'No resource open',
-      message: 'Select a resource in the outliner, then use Open from the context menu to load it here.',
+      message:
+          'Select a resource in the outliner, then use Open from the context menu to load it here.',
     );
   }
 
@@ -205,7 +209,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     return const _PlaceholderPanel(
       title: 'Inspector',
       subtitle: 'Selection details',
-      message: 'Material node properties will appear here when you open a material graph and select a node.',
+      message:
+          'Material node properties will appear here when you open a material graph and select a node.',
     );
   }
 
@@ -228,7 +233,8 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       return;
     }
 
-    final activeMaterial = widget.workspaceController.openedMaterialGraphDocument;
+    final activeMaterial =
+        widget.workspaceController.openedMaterialGraphDocument;
     if (activeMaterial == null) {
       if (widget.materialGraphController.hasGraph) {
         widget.materialGraphController.clearGraph();
@@ -238,10 +244,17 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
     if (!widget.materialGraphController.hasGraph ||
         widget.materialGraphController.graphId != activeMaterial.graph.id ||
-        !identical(widget.materialGraphController.graph, activeMaterial.graph)) {
+        !identical(
+          widget.materialGraphController.graph,
+          activeMaterial.graph,
+        )) {
       widget.materialGraphController.bindGraph(
         graph: activeMaterial.graph,
+        graphOutputSizeSettings: activeMaterial.outputSizeSettings,
         onChanged: widget.workspaceController.updateActiveMaterialGraph,
+        onGraphOutputSizeSettingsChanged: widget
+            .workspaceController
+            .updateActiveMaterialGraphOutputSizeSettings,
       );
     }
   }
@@ -265,7 +278,9 @@ class _WorkspaceToolbar extends StatelessWidget {
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.3),
+          color: Theme.of(
+            context,
+          ).colorScheme.outlineVariant.withValues(alpha: 0.3),
         ),
       ),
       child: Padding(
@@ -274,9 +289,9 @@ class _WorkspaceToolbar extends StatelessWidget {
           children: [
             Text(
               workspaceController.workspace.name,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(width: 10),
             if (resource != null)
@@ -291,6 +306,17 @@ class _WorkspaceToolbar extends StatelessWidget {
                 avatar: const Icon(Icons.memory_outlined, size: 14),
                 visualDensity: VisualDensity.compact,
               ),
+            if (resource?.kind == WorkspaceResourceKind.materialGraph &&
+                materialGraphController.resolvedGraphOutputSize != null) ...[
+              const SizedBox(width: 8),
+              Chip(
+                label: Text(
+                  '${materialGraphController.resolvedGraphOutputSize!.width}x${materialGraphController.resolvedGraphOutputSize!.height}',
+                ),
+                avatar: const Icon(Icons.aspect_ratio_outlined, size: 14),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
             const SizedBox(width: 8),
             Text(
               workspaceController.isDirty ? 'Unsaved changes' : 'Saved',
@@ -322,10 +348,7 @@ class _PlaceholderPanel extends StatelessWidget {
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-          ),
+          child: Text(message, textAlign: TextAlign.center),
         ),
       ),
     );
@@ -355,7 +378,9 @@ class _AssetPreviewPanel extends StatelessWidget {
             color: Theme.of(context).colorScheme.surfaceContainerLowest,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25),
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.25),
             ),
           ),
           child: Padding(

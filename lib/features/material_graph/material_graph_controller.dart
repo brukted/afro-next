@@ -11,9 +11,10 @@ import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import 'material_graph_catalog.dart';
-import 'material_graph_migration.dart';
 import 'material_node_definition.dart';
+import 'material_output_size.dart';
 import 'runtime/material_graph_compiler.dart';
+import 'runtime/material_execution_ir.dart';
 import 'runtime/material_graph_runtime.dart';
 
 class PendingSocketConnection {
@@ -58,6 +59,11 @@ class MaterialGraphController extends ChangeNotifier {
 
   GraphDocument? _graph;
   ValueChanged<GraphDocument>? _onGraphChanged;
+  ValueChanged<MaterialOutputSizeSettings>? _onGraphOutputSizeSettingsChanged;
+  MaterialOutputSizeSettings _graphOutputSizeSettings =
+      const MaterialOutputSizeSettings();
+  MaterialOutputSizeValue _sessionParentOutputSize =
+      const MaterialOutputSizeValue.parentDefault();
   String? _selectedNodeId;
   PendingSocketConnection? _pendingConnection;
 
@@ -72,6 +78,15 @@ class MaterialGraphController extends ChangeNotifier {
   List<MaterialNodeDefinition> get nodeDefinitions => _catalog.definitions;
 
   GraphDocument get graph => _graph!;
+
+  MaterialOutputSizeSettings get graphOutputSizeSettings =>
+      _graphOutputSizeSettings;
+
+  MaterialOutputSizeValue get sessionParentOutputSize =>
+      _sessionParentOutputSize;
+
+  MaterialResolvedOutputSize? get resolvedGraphOutputSize =>
+      _runtime.compiledGraph?.resolvedGraphOutputSize;
 
   String? get selectedNodeId => _selectedNodeId;
 
@@ -105,30 +120,160 @@ class MaterialGraphController extends ChangeNotifier {
 
   void bindGraph({
     required GraphDocument graph,
+    MaterialOutputSizeSettings graphOutputSizeSettings =
+        const MaterialOutputSizeSettings(),
     required ValueChanged<GraphDocument> onChanged,
+    ValueChanged<MaterialOutputSizeSettings>? onGraphOutputSizeSettingsChanged,
   }) {
-    final normalizedGraph = MaterialGraphMigration.normalize(graph);
-    final graphChanged = _graph?.id != normalizedGraph.id;
-    _graph = normalizedGraph;
+    final graphChanged = _graph?.id != graph.id;
+    _graph = graph;
     _onGraphChanged = onChanged;
+    _graphOutputSizeSettings = graphOutputSizeSettings;
+    _onGraphOutputSizeSettingsChanged = onGraphOutputSizeSettingsChanged;
     if (graphChanged) {
       _selectedNodeId = null;
       _pendingConnection = null;
     }
-    if (!identical(normalizedGraph, graph)) {
-      onChanged(normalizedGraph);
-    }
-    _runtime.bindGraph(normalizedGraph);
+    _runtime.bindGraph(
+      graph,
+      graphOutputSizeSettings: _graphOutputSizeSettings,
+      sessionParentOutputSize: _sessionParentOutputSize,
+    );
     notifyListeners();
   }
 
   void clearGraph() {
     _graph = null;
     _onGraphChanged = null;
+    _onGraphOutputSizeSettingsChanged = null;
+    _graphOutputSizeSettings = const MaterialOutputSizeSettings();
     _selectedNodeId = null;
     _pendingConnection = null;
     _runtime.clearGraph();
     notifyListeners();
+  }
+
+  void updateGraphOutputSizeSettings(MaterialOutputSizeSettings settings) {
+    _graphOutputSizeSettings = settings;
+    _onGraphOutputSizeSettingsChanged?.call(settings);
+    _refreshAllNodeOutputSizes();
+    notifyListeners();
+  }
+
+  void updateGraphOutputSizeMode(MaterialOutputSizeMode mode) {
+    final currentResolved = resolvedGraphOutputSize;
+    final inherited = MaterialResolvedOutputSize.fromLog2(
+      _sessionParentOutputSize,
+    );
+    final nextValue = switch (mode) {
+      MaterialOutputSizeMode.absolute => _log2ValueFromResolved(
+        currentResolved ?? inherited,
+      ),
+      MaterialOutputSizeMode.relativeToInput ||
+      MaterialOutputSizeMode.relativeToParent => _deltaFromResolved(
+        resolved: currentResolved ?? inherited,
+        inherited: inherited,
+      ),
+    };
+    updateGraphOutputSizeSettings(
+      _graphOutputSizeSettings.copyWith(mode: mode, value: nextValue),
+    );
+  }
+
+  void updateGraphOutputSizeValue(MaterialOutputSizeValue value) {
+    updateGraphOutputSizeSettings(
+      _graphOutputSizeSettings.copyWith(
+        value: _graphOutputSizeSettings.normalizeValue(value),
+      ),
+    );
+  }
+
+  void updateSessionParentOutputSize(MaterialOutputSizeValue value) {
+    _sessionParentOutputSize = value.clampAbsolute();
+    _refreshAllNodeOutputSizes();
+    notifyListeners();
+  }
+
+  MaterialOutputSizeSettings outputSizeSettingsForNode(GraphNodeDocument node) {
+    return materialOutputSizeSettingsFromStorage(
+      modeValue: node
+          .propertyByDefinitionKey(materialNodeOutputSizeModeKey)
+          ?.value
+          .enumValue,
+      value: node
+          .propertyByDefinitionKey(materialNodeOutputSizeValueKey)
+          ?.value
+          .integerValues,
+    );
+  }
+
+  MaterialResolvedOutputSize? resolvedOutputSizeForNode(String nodeId) {
+    return _runtime.compiledGraph?.passForNode(nodeId)?.resolvedOutputSize;
+  }
+
+  void updateNodeOutputSizeMode({
+    required String nodeId,
+    required MaterialOutputSizeMode mode,
+  }) {
+    final node = nodeById(nodeId);
+    if (node == null) {
+      return;
+    }
+    final definition = definitionForNode(node);
+    final currentResolved =
+        resolvedOutputSizeForNode(nodeId) ?? _fallbackResolvedSize;
+    final inherited = _resolvedInheritedOutputSize(
+      node: node,
+      definition: definition,
+      mode: mode,
+    );
+    final nextValue = inherited == null
+        ? _log2ValueFromResolved(currentResolved)
+        : _deltaFromResolved(resolved: currentResolved, inherited: inherited);
+    _updateNodeOutputSizeSettings(
+      node: node,
+      settings: MaterialOutputSizeSettings(mode: mode, value: nextValue),
+    );
+  }
+
+  void updateNodeOutputSizeValue({
+    required String nodeId,
+    required MaterialOutputSizeValue value,
+  }) {
+    final node = nodeById(nodeId);
+    if (node == null) {
+      return;
+    }
+    final settings = outputSizeSettingsForNode(node);
+    _updateNodeOutputSizeSettings(
+      node: node,
+      settings: settings.copyWith(value: settings.normalizeValue(value)),
+    );
+  }
+
+  bool updateOutputSizeProperty({
+    required String nodeId,
+    required String propertyKey,
+    required GraphValueData value,
+  }) {
+    switch (propertyKey) {
+      case materialNodeOutputSizeModeKey:
+        updateNodeOutputSizeMode(
+          nodeId: nodeId,
+          mode: materialOutputSizeModeFromEnumValue(value.enumValue ?? 0),
+        );
+        return true;
+      case materialNodeOutputSizeValueKey:
+        updateNodeOutputSizeValue(
+          nodeId: nodeId,
+          value: MaterialOutputSizeValue.fromInteger2(
+            value.integerValues ?? const <int>[0, 0],
+          ),
+        );
+        return true;
+      default:
+        return false;
+    }
   }
 
   void selectNode(String? nodeId) {
@@ -146,10 +291,7 @@ class MaterialGraphController extends ChangeNotifier {
         : 0;
     addNodeAt(
       definitionId,
-      Vector2(
-        760 + (matchingNodeCount * 42),
-        560 + (matchingNodeCount * 34),
-      ),
+      Vector2(760 + (matchingNodeCount * 42), 560 + (matchingNodeCount * 34)),
     );
   }
 
@@ -230,7 +372,9 @@ class MaterialGraphController extends ChangeNotifier {
             .where((entry) => entry.id != nodeId)
             .toList(growable: false),
         links: graph.links
-            .where((link) => link.fromNodeId != nodeId && link.toNodeId != nodeId)
+            .where(
+              (link) => link.fromNodeId != nodeId && link.toNodeId != nodeId,
+            )
             .toList(growable: false),
       ),
       dirtyRootNodeIds: dirtyRootNodeIds,
@@ -264,7 +408,9 @@ class MaterialGraphController extends ChangeNotifier {
     _commitGraph(
       graph.copyWith(
         links: graph.links
-            .where((link) => link.fromNodeId != nodeId && link.toNodeId != nodeId)
+            .where(
+              (link) => link.fromNodeId != nodeId && link.toNodeId != nodeId,
+            )
             .toList(growable: false),
       ),
       dirtyRootNodeIds: dirtyRootNodeIds,
@@ -301,9 +447,9 @@ class MaterialGraphController extends ChangeNotifier {
       return;
     }
 
-    final definition = definitionForNode(node).propertyDefinition(
-      property.definitionKey,
-    );
+    final definition = definitionForNode(
+      node,
+    ).propertyDefinition(property.definitionKey);
     final direction = definition.socketDirection;
     if (direction == null) {
       return;
@@ -372,7 +518,9 @@ class MaterialGraphController extends ChangeNotifier {
       return;
     }
 
-    final removedLink = graph.links.firstWhereOrNull((link) => link.id == linkId);
+    final removedLink = graph.links.firstWhereOrNull(
+      (link) => link.id == linkId,
+    );
     if (removedLink == null) {
       return;
     }
@@ -384,6 +532,45 @@ class MaterialGraphController extends ChangeNotifier {
             .toList(growable: false),
       ),
       dirtyRootNodeIds: [removedLink.toNodeId],
+    );
+  }
+
+  void disconnectSocket({required String nodeId, required String propertyId}) {
+    if (!hasGraph) {
+      return;
+    }
+
+    final node = nodeById(nodeId);
+    if (node == null || node.propertyById(propertyId) == null) {
+      return;
+    }
+
+    final linksToRemove = graph.links
+        .where(
+          (link) =>
+              link.fromPropertyId == propertyId ||
+              link.toPropertyId == propertyId,
+        )
+        .toList(growable: false);
+    if (linksToRemove.isEmpty) {
+      return;
+    }
+
+    if (_pendingConnection?.propertyId == propertyId) {
+      _pendingConnection = null;
+    }
+
+    _commitGraph(
+      graph.copyWith(
+        links: graph.links
+            .where(
+              (link) =>
+                  link.fromPropertyId != propertyId &&
+                  link.toPropertyId != propertyId,
+            )
+            .toList(growable: false),
+      ),
+      dirtyRootNodeIds: linksToRemove.map((link) => link.toNodeId).toSet(),
     );
   }
 
@@ -420,7 +607,8 @@ class MaterialGraphController extends ChangeNotifier {
     double? alpha,
   }) {
     final node = graph.nodes.firstWhere((entry) => entry.id == nodeId);
-    final current = node.propertyById(propertyId)?.value.asFloat4() ?? Vector4.zero();
+    final current =
+        node.propertyById(propertyId)?.value.asFloat4() ?? Vector4.zero();
     updatePropertyValue(
       nodeId: nodeId,
       propertyId: propertyId,
@@ -463,7 +651,8 @@ class MaterialGraphController extends ChangeNotifier {
         .toList(growable: false);
   }
 
-  PreviewRenderTarget? previewForNode(String nodeId) => _runtime.previewForNode(nodeId);
+  PreviewRenderTarget? previewForNode(String nodeId) =>
+      _runtime.previewForNode(nodeId);
 
   bool hasIncomingLink(String propertyId) {
     return graph.links.any((link) => link.toPropertyId == propertyId);
@@ -471,6 +660,57 @@ class MaterialGraphController extends ChangeNotifier {
 
   bool hasOutgoingLink(String propertyId) {
     return graph.links.any((link) => link.fromPropertyId == propertyId);
+  }
+
+  MaterialResolvedOutputSize? _resolvedPrimaryInputOutputSize(
+    GraphNodeDocument node,
+    MaterialNodeDefinition definition,
+  ) {
+    final primaryInputKey = definition.resolvedPrimaryInputPropertyKey;
+    if (primaryInputKey == null) {
+      return null;
+    }
+    final primaryInputProperty = node.propertyByDefinitionKey(primaryInputKey);
+    if (primaryInputProperty == null) {
+      return null;
+    }
+    final link = graph.links.firstWhereOrNull(
+      (entry) => entry.toPropertyId == primaryInputProperty.id,
+    );
+    if (link == null) {
+      return null;
+    }
+    return resolvedOutputSizeForNode(link.fromNodeId);
+  }
+
+  MaterialResolvedOutputSize get _fallbackResolvedSize =>
+      resolvedGraphOutputSize ??
+      MaterialResolvedOutputSize.fromLog2(_sessionParentOutputSize);
+
+  void _refreshAllNodeOutputSizes() {
+    if (!hasGraph) {
+      return;
+    }
+    _runtime.updateGraph(
+      graph,
+      graphOutputSizeSettings: _graphOutputSizeSettings,
+      sessionParentOutputSize: _sessionParentOutputSize,
+      dirtyRootNodeIds: graph.nodes.map((node) => node.id),
+    );
+  }
+
+  MaterialResolvedOutputSize? _resolvedInheritedOutputSize({
+    required GraphNodeDocument node,
+    required MaterialNodeDefinition definition,
+    required MaterialOutputSizeMode mode,
+  }) {
+    return switch (mode) {
+      MaterialOutputSizeMode.absolute => null,
+      MaterialOutputSizeMode.relativeToParent => _fallbackResolvedSize,
+      MaterialOutputSizeMode.relativeToInput =>
+        _resolvedPrimaryInputOutputSize(node, definition) ??
+            _fallbackResolvedSize,
+    };
   }
 
   void _connectProperties({
@@ -517,8 +757,9 @@ class MaterialGraphController extends ChangeNotifier {
     final node = graph.nodes.firstWhere((entry) => entry.id == nodeId);
     final updatedProperties = node.properties
         .map(
-          (property) =>
-              property.id == propertyId ? property.copyWith(value: value) : property,
+          (property) => property.id == propertyId
+              ? property.copyWith(value: value)
+              : property,
         )
         .toList(growable: false);
 
@@ -534,6 +775,60 @@ class MaterialGraphController extends ChangeNotifier {
       ),
       dirtyRootNodeIds: [nodeId],
     );
+  }
+
+  void _updateNodeOutputSizeSettings({
+    required GraphNodeDocument node,
+    required MaterialOutputSizeSettings settings,
+  }) {
+    final updatedProperties = node.properties
+        .map((property) {
+          if (property.definitionKey == materialNodeOutputSizeModeKey) {
+            return property.copyWith(
+              value: GraphValueData.enumChoice(
+                materialOutputSizeModeEnumValue(settings.mode),
+              ),
+            );
+          }
+          if (property.definitionKey == materialNodeOutputSizeValueKey) {
+            return property.copyWith(
+              value: GraphValueData.integer2(settings.value.asInteger2),
+            );
+          }
+          return property;
+        })
+        .toList(growable: false);
+    _commitGraph(
+      graph.copyWith(
+        nodes: graph.nodes
+            .map(
+              (entry) => entry.id == node.id
+                  ? entry.copyWith(properties: updatedProperties)
+                  : entry,
+            )
+            .toList(growable: false),
+      ),
+      dirtyRootNodeIds: [node.id],
+    );
+  }
+
+  MaterialOutputSizeValue _log2ValueFromResolved(
+    MaterialResolvedOutputSize resolved,
+  ) {
+    return MaterialOutputSizeValue(
+      widthLog2: resolved.widthLog2,
+      heightLog2: resolved.heightLog2,
+    );
+  }
+
+  MaterialOutputSizeValue _deltaFromResolved({
+    required MaterialResolvedOutputSize resolved,
+    required MaterialResolvedOutputSize inherited,
+  }) {
+    return MaterialOutputSizeValue(
+      widthLog2: resolved.widthLog2 - inherited.widthLog2,
+      heightLog2: resolved.heightLog2 - inherited.heightLog2,
+    ).clampRelative();
   }
 
   String _nextDuplicateName(String baseName) {
@@ -558,6 +853,8 @@ class MaterialGraphController extends ChangeNotifier {
     _onGraphChanged?.call(updatedGraph);
     _runtime.updateGraph(
       updatedGraph,
+      graphOutputSizeSettings: _graphOutputSizeSettings,
+      sessionParentOutputSize: _sessionParentOutputSize,
       dirtyRootNodeIds: dirtyRootNodeIds,
       refreshPreviews: refreshPreviews,
     );

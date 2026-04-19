@@ -5,6 +5,7 @@ import '../../shared/ids/id_factory.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import 'material_node_definition.dart';
+import 'material_output_size.dart';
 
 class MaterialGraphCatalog {
   MaterialGraphCatalog(this._idFactory);
@@ -186,6 +187,7 @@ class MaterialGraphCatalog {
       ),
       icon: Icons.merge_type_outlined,
       accentColor: _color('#7D67FF'),
+      primaryInputPropertyKey: 'Background',
       runtime: const MaterialNodeRuntimeDefinition.fragment(
         shaderAssetId: 'material/blend.frag',
       ),
@@ -960,7 +962,7 @@ class MaterialGraphCatalog {
         shaderAssetId: null,
       ),
     ),
-  ];
+  ].map(_decorateDefinition).toList(growable: false);
 
   List<MaterialNodeDefinition> get definitions => _definitions;
 
@@ -1046,6 +1048,10 @@ class MaterialGraphCatalog {
       nodes: [solidColor, circle, mix, channelSelect, curveDemo],
       links: links,
     );
+  }
+
+  GraphValueData defaultValueForProperty(GraphPropertyDefinition definition) {
+    return _wrapDefaultValue(definition);
   }
 
   GraphLinkDocument _connect({
@@ -1169,6 +1175,76 @@ class MaterialGraphCatalog {
       valueType: GraphValueType.float4,
       valueUnit: GraphValueUnit.color,
       defaultValue: _black(),
+    );
+  }
+
+  static MaterialNodeDefinition _decorateDefinition(
+    MaterialNodeDefinition definition,
+  ) {
+    return MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: definition.schema.id,
+        label: definition.schema.label,
+        description: definition.schema.description,
+        properties: _withBaseOutputSizeProperties(definition.schema.properties),
+      ),
+      icon: definition.icon,
+      accentColor: definition.accentColor,
+      runtime: definition.runtime,
+      primaryInputPropertyKey: definition.primaryInputPropertyKey,
+    );
+  }
+
+  static List<GraphPropertyDefinition> _withBaseOutputSizeProperties(
+    List<GraphPropertyDefinition> properties,
+  ) {
+    final outputIndex = properties.indexWhere(
+      (property) => property.propertyType == GraphPropertyType.output,
+    );
+    if (outputIndex == -1 ||
+        properties.any(
+          (property) => property.key == materialNodeOutputSizeModeKey,
+        )) {
+      return properties;
+    }
+    return <GraphPropertyDefinition>[
+      ...properties.take(outputIndex),
+      _outputSizeModeProperty(),
+      _outputSizeValueProperty(),
+      ...properties.skip(outputIndex),
+    ];
+  }
+
+  static GraphPropertyDefinition _outputSizeModeProperty() {
+    return GraphPropertyDefinition(
+      key: materialNodeOutputSizeModeKey,
+      label: 'Output Size Mode',
+      description:
+          'Controls whether this node uses its own size, the primary input, or the graph size.',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.enumChoice,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: materialOutputSizeModeEnumValue(
+        const MaterialOutputSizeSettings.nodeDefault().mode,
+      ),
+      enumOptions: materialOutputSizeModeOptions,
+    );
+  }
+
+  static GraphPropertyDefinition _outputSizeValueProperty() {
+    return GraphPropertyDefinition(
+      key: materialNodeOutputSizeValueKey,
+      label: 'Output Size',
+      description:
+          'Absolute uses log2 size. Relative modes use signed power-of-two offsets.',
+      propertyType: GraphPropertyType.input,
+      socket: false,
+      valueType: GraphValueType.integer2,
+      valueUnit: GraphValueUnit.power2,
+      defaultValue: const <int>[0, 0],
+      min: materialOutputSizeRelativeMinDelta,
+      max: materialOutputSizeRelativeMaxDelta,
     );
   }
 

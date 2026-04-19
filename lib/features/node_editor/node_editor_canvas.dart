@@ -20,6 +20,12 @@ typedef NodeEditorNodeMenuHandler<T> =
       NodeEditorNodeViewModel<T> node,
       Offset globalPosition,
     );
+typedef NodeEditorSocketMenuHandler<T> =
+    Future<void> Function(
+      NodeEditorNodeViewModel<T> node,
+      NodeEditorSocketViewModel socket,
+      Offset globalPosition,
+    );
 
 class NodeEditorCanvas<T> extends StatefulWidget {
   const NodeEditorCanvas({
@@ -36,6 +42,7 @@ class NodeEditorCanvas<T> extends StatefulWidget {
     this.buildNodeBody,
     this.onRequestCanvasMenu,
     this.onRequestNodeMenu,
+    this.onRequestSocketMenu,
   });
 
   final List<NodeEditorNodeViewModel<T>> nodes;
@@ -50,6 +57,7 @@ class NodeEditorCanvas<T> extends StatefulWidget {
   final NodeEditorBodyBuilder<T>? buildNodeBody;
   final NodeEditorCanvasMenuHandler? onRequestCanvasMenu;
   final NodeEditorNodeMenuHandler<T>? onRequestNodeMenu;
+  final NodeEditorSocketMenuHandler<T>? onRequestSocketMenu;
 
   @override
   State<NodeEditorCanvas<T>> createState() => _NodeEditorCanvasState<T>();
@@ -172,6 +180,17 @@ class _NodeEditorCanvasState<T> extends State<NodeEditorCanvas<T>> {
                                 onSocketTap: (propertyId) {
                                   widget.onSocketTap(node.id, propertyId);
                                 },
+                                onRequestSocketMenu: (
+                                  socket,
+                                  globalPosition,
+                                ) {
+                                  widget.onSelectNode(node.id);
+                                  _requestSocketMenu(
+                                    node,
+                                    socket,
+                                    globalPosition,
+                                  );
+                                },
                                 onRequestContextMenu: (globalPosition) {
                                   widget.onSelectNode(node.id);
                                   _requestNodeMenu(node, globalPosition);
@@ -281,6 +300,19 @@ class _NodeEditorCanvasState<T> extends State<NodeEditorCanvas<T>> {
     unawaited(handler(node, globalPosition));
   }
 
+  void _requestSocketMenu(
+    NodeEditorNodeViewModel<T> node,
+    NodeEditorSocketViewModel socket,
+    Offset globalPosition,
+  ) {
+    final handler = widget.onRequestSocketMenu;
+    if (handler == null) {
+      return;
+    }
+
+    unawaited(handler(node, socket, globalPosition));
+  }
+
   void _handleTrackpadPanZoom(PointerPanZoomUpdateEvent event) {
     _viewportController.panBy(event.localPanDelta);
 
@@ -340,6 +372,7 @@ class _NodeCard<T> extends StatelessWidget {
     required this.onDragEnd,
     required this.onSocketTap,
     required this.bodyBuilder,
+    required this.onRequestSocketMenu,
     required this.onRequestContextMenu,
   });
 
@@ -352,6 +385,8 @@ class _NodeCard<T> extends StatelessWidget {
   final VoidCallback onDragEnd;
   final ValueChanged<String> onSocketTap;
   final NodeEditorBodyBuilder<T>? bodyBuilder;
+  final void Function(NodeEditorSocketViewModel socket, Offset globalPosition)
+  onRequestSocketMenu;
   final ValueChanged<Offset> onRequestContextMenu;
 
   @override
@@ -439,45 +474,56 @@ class _NodeCard<T> extends StatelessWidget {
             ...node.sockets.map((socket) {
               return Material(
                 color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onSecondaryTapDown: (details) {
                     onSelect();
-                    onSocketTap(socket.id);
+                    onRequestSocketMenu(socket, details.globalPosition);
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: SizedBox(
-                      height: nodeEditorRowHeight,
-                      child: Row(
-                        children: [
-                          if (socket.direction == GraphSocketDirection.input)
-                            _SocketDot(
-                              isActive: pendingPropertyId == socket.id,
-                              isConnected: socket.isConnected,
-                              color: node.accentColor,
-                            )
-                          else
-                            const SizedBox(width: 10),
-                          if (socket.direction == GraphSocketDirection.input)
-                            const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              socket.label,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall,
+                  onLongPressStart: (details) {
+                    onSelect();
+                    onRequestSocketMenu(socket, details.globalPosition);
+                  },
+                  child: InkWell(
+                    onTap: () {
+                      onSelect();
+                      onSocketTap(socket.id);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: SizedBox(
+                        height: nodeEditorRowHeight,
+                        child: Row(
+                          children: [
+                            if (socket.direction == GraphSocketDirection.input)
+                              _SocketDot(
+                                isActive: pendingPropertyId == socket.id,
+                                isConnected: socket.isConnected,
+                                color: node.accentColor,
+                              )
+                            else
+                              const SizedBox(width: 10),
+                            if (socket.direction == GraphSocketDirection.input)
+                              const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                socket.label,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall,
+                              ),
                             ),
-                          ),
-                          if (socket.direction ==
-                              GraphSocketDirection.output) ...[
-                            const SizedBox(width: 6),
-                            _SocketDot(
-                              isActive: pendingPropertyId == socket.id,
-                              isConnected: socket.isConnected,
-                              color: node.accentColor,
-                            ),
-                          ] else
-                            const SizedBox(width: 10),
-                        ],
+                            if (socket.direction ==
+                                GraphSocketDirection.output) ...[
+                              const SizedBox(width: 6),
+                              _SocketDot(
+                                isActive: pendingPropertyId == socket.id,
+                                isConnected: socket.isConnected,
+                                color: node.accentColor,
+                              ),
+                            ] else
+                              const SizedBox(width: 10),
+                          ],
+                        ),
                       ),
                     ),
                   ),

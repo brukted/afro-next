@@ -14,7 +14,9 @@ void main() {
     final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
     final plan = const VulkanMaterialBackendPlanner().createPlan(compiled);
 
-    final mixNode = graph.nodes.firstWhere((node) => node.definitionId == 'mix_node');
+    final mixNode = graph.nodes.firstWhere(
+      (node) => node.definitionId == 'mix_node',
+    );
     final channelSelectNode = graph.nodes.firstWhere(
       (node) => node.definitionId == 'channel_select_node',
     );
@@ -24,7 +26,11 @@ void main() {
 
     expect(mixPass.isSupported, isTrue);
     expect(mixPass.shader?.assetId, 'material/blend.frag');
-    expect(mixPass.descriptorBindings.first.kind, VulkanDescriptorBindingKind.uniformBuffer);
+    expect(mixPass.resolvedOutputSize.extentLabel, '512x512');
+    expect(
+      mixPass.descriptorBindings.first.kind,
+      VulkanDescriptorBindingKind.uniformBuffer,
+    );
     expect(
       mixPass.descriptorBindings.where(
         (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
@@ -36,60 +42,77 @@ void main() {
     expect(plan.previewTargetIdsByNodeId[mixNode.id], mixPass.outputTarget.id);
   });
 
-  test('planner supports expanded fullscreen nodes and generated LUT bindings', () {
-    final catalog = MaterialGraphCatalog(IdFactory());
-    final levels = catalog.instantiateNode(
-      definitionId: 'levels_node',
-      position: vmath.Vector2.zero(),
-    );
-    final curve = catalog.instantiateNode(
-      definitionId: 'curve_node',
-      position: vmath.Vector2(300, 0),
-    );
-    final transform = catalog.instantiateNode(
-      definitionId: 'transform_node',
-      position: vmath.Vector2(600, 0),
-    );
-    final graph = GraphDocument(
-      id: 'graph-1',
-      name: 'Expanded Plan',
-      nodes: [levels, curve, transform],
-      links: [
-        _connect(fromNode: levels, fromKey: '_output', toNode: curve, toKey: 'MainTex'),
-        _connect(fromNode: curve, fromKey: '_output', toNode: transform, toKey: 'MainTex'),
-      ],
-    );
+  test(
+    'planner supports expanded fullscreen nodes and generated LUT bindings',
+    () {
+      final catalog = MaterialGraphCatalog(IdFactory());
+      final levels = catalog.instantiateNode(
+        definitionId: 'levels_node',
+        position: vmath.Vector2.zero(),
+      );
+      final curve = catalog.instantiateNode(
+        definitionId: 'curve_node',
+        position: vmath.Vector2(300, 0),
+      );
+      final transform = catalog.instantiateNode(
+        definitionId: 'transform_node',
+        position: vmath.Vector2(600, 0),
+      );
+      final graph = GraphDocument(
+        id: 'graph-1',
+        name: 'Expanded Plan',
+        nodes: [levels, curve, transform],
+        links: [
+          _connect(
+            fromNode: levels,
+            fromKey: '_output',
+            toNode: curve,
+            toKey: 'MainTex',
+          ),
+          _connect(
+            fromNode: curve,
+            fromKey: '_output',
+            toNode: transform,
+            toKey: 'MainTex',
+          ),
+        ],
+      );
 
-    final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
-    final plan = const VulkanMaterialBackendPlanner().createPlan(compiled);
+      final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
+      final plan = const VulkanMaterialBackendPlanner().createPlan(compiled);
 
-    final levelsPass = plan.passForNode(levels.id)!;
-    final curvePass = plan.passForNode(curve.id)!;
-    final transformPass = plan.passForNode(transform.id)!;
+      final levelsPass = plan.passForNode(levels.id)!;
+      final curvePass = plan.passForNode(curve.id)!;
+      final transformPass = plan.passForNode(transform.id)!;
 
-    expect(levelsPass.isSupported, isTrue);
-    expect(levelsPass.shader?.assetId, 'material/levels.frag');
-    expect(
-      levelsPass.descriptorBindings.where(
-        (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
-      ),
-      hasLength(1),
-    );
+      expect(levelsPass.isSupported, isTrue);
+      expect(levelsPass.shader?.assetId, 'material/levels.frag');
+      expect(
+        levelsPass.descriptorBindings.where(
+          (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
+        ),
+        hasLength(1),
+      );
 
-    expect(curvePass.isSupported, isTrue);
-    expect(curvePass.shader?.assetId, 'material/curve.frag');
-    expect(
-      curvePass.descriptorBindings.where(
-        (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
-      ),
-      hasLength(2),
-    );
+      expect(curvePass.isSupported, isTrue);
+      expect(curvePass.shader?.assetId, 'material/curve.frag');
+      expect(curvePass.resolvedOutputSize.extentLabel, '512x512');
+      expect(
+        curvePass.descriptorBindings.where(
+          (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
+        ),
+        hasLength(2),
+      );
 
-    expect(transformPass.isSupported, isTrue);
-    expect(transformPass.shader?.assetId, 'material/transform.frag');
-    expect(transformPass.outputTarget.usage, VulkanImageTargetUsage.finalOutput);
-    expect(plan.finalOutputTargetId, transformPass.outputTarget.id);
-  });
+      expect(transformPass.isSupported, isTrue);
+      expect(transformPass.shader?.assetId, 'material/transform.frag');
+      expect(
+        transformPass.outputTarget.usage,
+        VulkanImageTargetUsage.finalOutput,
+      );
+      expect(plan.finalOutputTargetId, transformPass.outputTarget.id);
+    },
+  );
 
   test('planner supports asset-backed image svg and text nodes', () {
     final catalog = MaterialGraphCatalog(IdFactory());
@@ -122,6 +145,7 @@ void main() {
     expect(imagePass.isSupported, isTrue);
     expect(svgPass.isSupported, isTrue);
     expect(textPass.isSupported, isTrue);
+    expect(imagePass.resolvedOutputSize.extentLabel, '512x512');
     expect(imagePass.shader?.assetId, 'material/image-basic.frag');
     expect(
       imagePass.descriptorBindings.where(

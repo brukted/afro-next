@@ -263,6 +263,64 @@ void main() {
     expect(requestedNodeId, 'node-ctx');
   });
 
+  testWidgets('requests the socket context menu for the clicked socket', (
+    WidgetTester tester,
+  ) async {
+    String? requestedNodeId;
+    String? requestedSocketId;
+    String? nodeMenuRequest;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 800,
+            height: 600,
+            child: NodeEditorCanvas<Object?>(
+              nodes: [
+                NodeEditorNodeViewModel<Object?>(
+                  id: 'node-socket-ctx',
+                  title: 'Socket Context Node',
+                  position: Vector2(80, 80),
+                  icon: Icons.account_tree_outlined,
+                  accentColor: const Color(0xFF7D67FF),
+                  sockets: const [
+                    NodeEditorSocketViewModel(
+                      id: 'socket-ctx',
+                      label: 'Output',
+                      direction: GraphSocketDirection.output,
+                      isConnected: true,
+                    ),
+                  ],
+                ),
+              ],
+              links: const [],
+              selectedNodeId: null,
+              pendingPropertyId: null,
+              onSelectNode: (_) {},
+              onSetNodePosition: (_, _) {},
+              onSocketTap: (_, _) {},
+              onCancelPendingConnection: () {},
+              onRequestNodeMenu: (node, _) async {
+                nodeMenuRequest = node.id;
+              },
+              onRequestSocketMenu: (node, socket, _) async {
+                requestedNodeId = node.id;
+                requestedSocketId = socket.id;
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await _secondaryClick(tester, find.text('Output'));
+
+    expect(requestedNodeId, 'node-socket-ctx');
+    expect(requestedSocketId, 'socket-ctx');
+    expect(nodeMenuRequest, isNull);
+  });
+
   test('focusSceneRect centers the target rect', () {
     final controller = NodeEditorViewportController();
     const viewportSize = Size(800, 600);

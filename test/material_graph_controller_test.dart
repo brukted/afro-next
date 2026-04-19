@@ -42,6 +42,37 @@ void main() {
     );
   });
 
+  test('disconnects every link attached to a connected output socket', () {
+    final controller = _buildController();
+    final solidColor = controller.graph.nodes.firstWhere(
+      (node) => node.definitionId == 'solid_color_node',
+    );
+    final outputPropertyId = controller.graph.links
+        .firstWhere((link) => link.fromNodeId == solidColor.id)
+        .fromPropertyId;
+
+    controller.handleSocketTap(
+      nodeId: solidColor.id,
+      propertyId: outputPropertyId,
+    );
+    expect(controller.pendingConnection?.propertyId, outputPropertyId);
+
+    controller.disconnectSocket(
+      nodeId: solidColor.id,
+      propertyId: outputPropertyId,
+    );
+
+    expect(
+      controller.graph.links.any(
+        (link) =>
+            link.fromNodeId == solidColor.id &&
+            link.fromPropertyId == outputPropertyId,
+      ),
+      isFalse,
+    );
+    expect(controller.pendingConnection, isNull);
+  });
+
   test('deletes a node and all links attached to it', () {
     final controller = _buildController();
     final mixNode = controller.graph.nodes.firstWhere(

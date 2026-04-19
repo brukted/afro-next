@@ -1,4 +1,5 @@
 import '../../features/material_graph/material_node_definition.dart';
+import '../../features/material_graph/runtime/material_execution_ir.dart';
 
 enum VulkanDescriptorBindingKind {
   uniformBuffer,
@@ -67,6 +68,7 @@ class VulkanMaterialPassPlan {
     required this.outputTarget,
     required this.pipelineCacheKey,
     required this.isSupported,
+    required this.resolvedOutputSize,
   });
 
   final String nodeId;
@@ -75,6 +77,7 @@ class VulkanMaterialPassPlan {
   final VulkanImageTargetPlan outputTarget;
   final VulkanMaterialPipelineCacheKey pipelineCacheKey;
   final bool isSupported;
+  final MaterialResolvedOutputSize resolvedOutputSize;
 }
 
 class VulkanMaterialBackendPlan {

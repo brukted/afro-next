@@ -11,6 +11,7 @@ import '../../services/logging/app_logger.dart';
 import '../../services/preferences/app_preferences.dart';
 import '../../shared/ids/id_factory.dart';
 import '../graph/models/graph_models.dart';
+import '../material_graph/material_output_size.dart';
 import 'models/workspace_models.dart';
 
 class WorkspaceController extends ChangeNotifier {
@@ -125,7 +126,9 @@ class WorkspaceController extends ChangeNotifier {
       return null;
     }
 
-    return workspace.images.firstWhereOrNull((entry) => entry.id == resource.documentId);
+    return workspace.images.firstWhereOrNull(
+      (entry) => entry.id == resource.documentId,
+    );
   }
 
   SvgResourceDocument? get openedSvgDocument {
@@ -134,7 +137,9 @@ class WorkspaceController extends ChangeNotifier {
       return null;
     }
 
-    return workspace.svgs.firstWhereOrNull((entry) => entry.id == resource.documentId);
+    return workspace.svgs.firstWhereOrNull(
+      (entry) => entry.id == resource.documentId,
+    );
   }
 
   ImageResourceDocument? imageDocumentByResourceId(String resourceId) {
@@ -142,7 +147,9 @@ class WorkspaceController extends ChangeNotifier {
     if (resource == null || resource.kind != WorkspaceResourceKind.image) {
       return null;
     }
-    return workspace.images.firstWhereOrNull((entry) => entry.id == resource.documentId);
+    return workspace.images.firstWhereOrNull(
+      (entry) => entry.id == resource.documentId,
+    );
   }
 
   SvgResourceDocument? svgDocumentByResourceId(String resourceId) {
@@ -150,14 +157,21 @@ class WorkspaceController extends ChangeNotifier {
     if (resource == null || resource.kind != WorkspaceResourceKind.svg) {
       return null;
     }
-    return workspace.svgs.firstWhereOrNull((entry) => entry.id == resource.documentId);
+    return workspace.svgs.firstWhereOrNull(
+      (entry) => entry.id == resource.documentId,
+    );
   }
 
-  List<WorkspaceResourceEntry> resourcesForKinds(Set<WorkspaceResourceKind> kinds) {
+  List<WorkspaceResourceEntry> resourcesForKinds(
+    Set<WorkspaceResourceKind> kinds,
+  ) {
     return workspace.resources
         .where((entry) => kinds.contains(entry.kind))
         .toList(growable: false)
-      ..sort((left, right) => left.name.toLowerCase().compareTo(right.name.toLowerCase()));
+      ..sort(
+        (left, right) =>
+            left.name.toLowerCase().compareTo(right.name.toLowerCase()),
+      );
   }
 
   Future<void> initialize() async {
@@ -257,7 +271,8 @@ class WorkspaceController extends ChangeNotifier {
       return;
     }
 
-    if (_selectedResourceId == resource.id && _openedResourceId == resource.id) {
+    if (_selectedResourceId == resource.id &&
+        _openedResourceId == resource.id) {
       return;
     }
 
@@ -333,6 +348,7 @@ class WorkspaceController extends ChangeNotifier {
     final document = MaterialGraphResourceDocument(
       id: _idFactory.next(),
       graph: GraphDocument.empty(id: _idFactory.next(), name: graphName),
+      outputSizeSettings: const MaterialOutputSizeSettings(),
     );
     final resource = WorkspaceResourceEntry(
       id: _idFactory.next(),
@@ -403,10 +419,7 @@ class WorkspaceController extends ChangeNotifier {
     );
     final resource = WorkspaceResourceEntry(
       id: _idFactory.next(),
-      name: _uniqueResourceName(
-        sourceName,
-        WorkspaceResourceKind.image,
-      ),
+      name: _uniqueResourceName(sourceName, WorkspaceResourceKind.image),
       kind: WorkspaceResourceKind.image,
       parentId: _normalizeParentId(parentId),
       documentId: document.id,
@@ -432,10 +445,7 @@ class WorkspaceController extends ChangeNotifier {
     );
     final resource = WorkspaceResourceEntry(
       id: _idFactory.next(),
-      name: _uniqueResourceName(
-        sourceName,
-        WorkspaceResourceKind.svg,
-      ),
+      name: _uniqueResourceName(sourceName, WorkspaceResourceKind.svg),
       kind: WorkspaceResourceKind.svg,
       parentId: _normalizeParentId(parentId),
       documentId: document.id,
@@ -566,7 +576,8 @@ class WorkspaceController extends ChangeNotifier {
     );
 
     _workspace = updatedWorkspace;
-    if (_selectedResourceId != null && removedIds.contains(_selectedResourceId)) {
+    if (_selectedResourceId != null &&
+        removedIds.contains(_selectedResourceId)) {
       _selectedResourceId = _pickFallbackResource(
         updatedWorkspace,
         preferredParentId: resource.parentId,
@@ -607,6 +618,25 @@ class WorkspaceController extends ChangeNotifier {
     _replaceWorkspace(
       workspace.copyWith(resources: resources, materialGraphs: materialGraphs),
     );
+  }
+
+  void updateActiveMaterialGraphOutputSizeSettings(
+    MaterialOutputSizeSettings outputSizeSettings,
+  ) {
+    final resource = openedResource;
+    if (resource == null || resource.documentId == null) {
+      return;
+    }
+
+    final materialGraphs = workspace.materialGraphs
+        .map(
+          (entry) => entry.id == resource.documentId
+              ? entry.copyWith(outputSizeSettings: outputSizeSettings)
+              : entry,
+        )
+        .toList(growable: false);
+
+    _replaceWorkspace(workspace.copyWith(materialGraphs: materialGraphs));
   }
 
   void _replaceWorkspace(WorkspaceProjectDocument updatedWorkspace) {

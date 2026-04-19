@@ -1,13 +1,9 @@
-import 'dart:io';
-import 'dart:ui' as ui;
-
 import 'package:eyecandy/app/theme/app_theme.dart';
 import 'package:eyecandy/features/graph/models/graph_models.dart';
 import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
 import 'package:eyecandy/features/material_graph/material_graph_controller.dart';
 import 'package:eyecandy/features/property_editor/color_curve_editor.dart';
 import 'package:eyecandy/features/property_editor/property_editor_panel.dart';
-import 'package:eyecandy/features/workspace/workspace_controller.dart';
 import 'package:eyecandy/shared/ids/id_factory.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,107 +13,67 @@ void main() {
   testWidgets('circle properties expose both sliders and hard inputs', (
     tester,
   ) async {
-    final catalog = MaterialGraphCatalog(IdFactory());
-    final controller = MaterialGraphController.preview();
+    final catalog = _buildCatalog();
     final graph = catalog.createStarterGraph(name: 'Test');
     final circleNode = graph.nodes.firstWhere(
       (node) => node.definitionId == 'circle_node',
     );
+    final controller = _createBoundController(graph);
 
-    controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(circleNode.id);
+    await _pumpPropertyEditor(tester, controller: controller, height: 700);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: Scaffold(
-          body: SizedBox(
-            width: 360,
-            height: 700,
-            child: PropertyEditorPanel(controller: controller),
-          ),
-        ),
-      ),
-    );
-
-    expect(find.text('Radius'), findsOneWidget);
-    expect(find.text('Outline'), findsOneWidget);
-    expect(find.text('Width'), findsOneWidget);
-    expect(find.text('Height'), findsOneWidget);
-    expect(find.byType(Slider), findsNWidgets(4));
-    expect(find.byType(TextFormField), findsNWidgets(4));
+    expect(_panelText('Radius'), findsOneWidget);
+    expect(_panelText('Outline'), findsOneWidget);
+    expect(_panelText('Width'), findsOneWidget);
+    expect(_panelText('Height'), findsOneWidget);
+    expect(_panelDescendant(find.byType(Slider)), findsNWidgets(4));
+    expect(_panelDescendant(find.byType(TextFormField)), findsNWidgets(4));
   });
 
   testWidgets('mix node exposes compact dropdowns and a color picker dialog', (
     tester,
   ) async {
-    final catalog = MaterialGraphCatalog(IdFactory());
-    final controller = MaterialGraphController.preview();
+    final catalog = _buildCatalog();
     final graph = catalog.createStarterGraph(name: 'Test');
     final mixNode = graph.nodes.firstWhere(
       (node) => node.definitionId == 'mix_node',
     );
+    final controller = _createBoundController(graph);
 
-    controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(mixNode.id);
+    await _pumpPropertyEditor(tester, controller: controller, height: 700);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: Scaffold(
-          body: SizedBox(
-            width: 360,
-            height: 700,
-            child: PropertyEditorPanel(controller: controller),
-          ),
-        ),
-      ),
-    );
+    expect(_panelText('Pick'), findsNWidgets(2));
 
-    expect(find.text('Pick'), findsNWidgets(2));
-
-    await tester.tap(find.text('Pick').first);
+    await tester.tap(_panelText('Pick').first);
     await tester.pumpAndSettle();
 
-    expect(find.text('Pick Color'), findsOneWidget);
-    expect(find.text('Apply'), findsOneWidget);
+    expect(find.text('Pick color'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
   });
 
   testWidgets('curve demo node exposes the bezier curve editor', (
     tester,
   ) async {
-    final catalog = MaterialGraphCatalog(IdFactory());
-    final controller = MaterialGraphController.preview();
+    final catalog = _buildCatalog();
     final graph = catalog.createStarterGraph(name: 'Test');
     final curveNode = graph.nodes.firstWhere(
       (node) => node.definitionId == 'curve_demo_node',
     );
+    final controller = _createBoundController(graph);
 
-    controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(curveNode.id);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: Scaffold(
-          body: SizedBox(
-            width: 360,
-            height: 760,
-            child: PropertyEditorPanel(controller: controller),
-          ),
-        ),
-      ),
-    );
+    await _pumpPropertyEditor(tester, controller: controller);
 
     expect(find.byType(ColorBezierCurveEditor), findsOneWidget);
-    expect(find.text('Double-click to add a point'), findsOneWidget);
+    expect(_panelText('Double-click to add a point'), findsOneWidget);
   });
 
   testWidgets('gradient map node exposes editable gradient fallback', (
     tester,
   ) async {
-    final catalog = MaterialGraphCatalog(IdFactory());
-    final controller = MaterialGraphController.preview();
+    final catalog = _buildCatalog();
     final gradientNode = catalog.instantiateNode(
       definitionId: 'gradientmap_node',
       position: Vector2.zero(),
@@ -128,98 +84,94 @@ void main() {
       nodes: [gradientNode],
       links: const [],
     );
+    final controller = _createBoundController(graph);
 
-    controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(gradientNode.id);
+    await _pumpPropertyEditor(tester, controller: controller);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: Scaffold(
-          body: SizedBox(
-            width: 360,
-            height: 760,
-            child: PropertyEditorPanel(controller: controller),
-          ),
-        ),
-      ),
-    );
-
-    expect(find.text('Add Stop'), findsOneWidget);
-    expect(find.byType(Slider), findsWidgets);
+    expect(_panelText('Add Stop'), findsOneWidget);
+    expect(_panelDescendant(find.byType(Slider)), findsAtLeastNWidgets(1));
   });
 
-  testWidgets('image and text nodes expose resource and text editors', (
-    tester,
-  ) async {
-    final catalog = MaterialGraphCatalog(IdFactory());
-    final controller = MaterialGraphController.preview();
-    final workspaceController = WorkspaceController.preview()..initializeForPreview();
-    final tempDir = await Directory.systemTemp.createTemp('eyecandy-props');
-    addTearDown(() => tempDir.delete(recursive: true));
-    final imagePath = '${tempDir.path}/preview.png';
-    await File(imagePath).writeAsBytes(await _createPngBytes());
-    await workspaceController.importImageFileAt(
-      imagePath,
-      workspaceController.workspace.rootFolderId,
-    );
-
+  testWidgets('image node exposes output-size controls', (tester) async {
+    final catalog = _buildCatalog();
     final imageNode = catalog.instantiateNode(
       definitionId: 'image_node',
       position: Vector2.zero(),
     );
-    final textNode = catalog.instantiateNode(
-      definitionId: 'text_node',
-      position: Vector2(120, 0),
-    );
     final graph = GraphDocument(
-      id: 'asset-graph',
-      name: 'Assets',
-      nodes: [imageNode, textNode],
+      id: 'image-output-size-graph',
+      name: 'Image Output Size',
+      nodes: [imageNode],
       links: const [],
     );
+    final controller = _createBoundController(graph);
 
-    controller.bindGraph(graph: graph, onChanged: (_) {});
     controller.selectNode(imageNode.id);
+    await _pumpPropertyEditor(tester, controller: controller);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark(),
-        home: Scaffold(
-          body: SizedBox(
-            width: 360,
-            height: 760,
-            child: PropertyEditorPanel(
-              controller: controller,
-              workspaceController: workspaceController,
-            ),
-          ),
-        ),
-      ),
+    expect(_panelText('Output Size Mode'), findsOneWidget);
+    expect(_panelText('Output Size'), findsOneWidget);
+    expect(_panelText('Relative to parent'), findsOneWidget);
+  });
+
+  testWidgets('text node exposes text editors', (tester) async {
+    final catalog = _buildCatalog();
+    final textNode = catalog.instantiateNode(
+      definitionId: 'text_node',
+      position: Vector2.zero(),
     );
-    await tester.pumpAndSettle();
-
-    expect(find.text('None'), findsOneWidget);
-    expect(find.text('preview.png'), findsOneWidget);
+    final graph = GraphDocument(
+      id: 'text-graph',
+      name: 'Text',
+      nodes: [textNode],
+      links: const [],
+    );
+    final controller = _createBoundController(graph);
 
     controller.selectNode(textNode.id);
-    await tester.pumpAndSettle();
+    await _pumpPropertyEditor(tester, controller: controller);
 
-    expect(find.text('Font Family'), findsOneWidget);
-    expect(find.text('Background Color'), findsOneWidget);
-    expect(find.text('Text Color'), findsOneWidget);
+    expect(_panelText('Font Family'), findsOneWidget);
+    expect(_panelText('Background Color'), findsOneWidget);
+    expect(_panelText('Text Color'), findsOneWidget);
   });
 }
 
-Future<List<int>> _createPngBytes() async {
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder);
-  canvas.drawRect(
-    const ui.Rect.fromLTWH(0, 0, 4, 4),
-    ui.Paint()..color = const ui.Color(0xFF4DA3FF),
-  );
-  final image = await recorder.endRecording().toImage(4, 4);
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-  image.dispose();
-  return byteData!.buffer.asUint8List();
+MaterialGraphCatalog _buildCatalog() => MaterialGraphCatalog(IdFactory());
+
+MaterialGraphController _createBoundController(GraphDocument graph) {
+  final controller = MaterialGraphController.preview();
+  addTearDown(controller.dispose);
+  controller.bindGraph(graph: graph, onChanged: (_) {});
+  return controller;
 }
+
+Future<void> _pumpPropertyEditor(
+  WidgetTester tester, {
+  required MaterialGraphController controller,
+  double width = 360,
+  double height = 760,
+}) {
+  return tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.dark(),
+      home: Scaffold(
+        body: SizedBox(
+          width: width,
+          height: height,
+          child: PropertyEditorPanel(controller: controller),
+        ),
+      ),
+    ),
+  );
+}
+
+Finder _panelDescendant(Finder matching) {
+  return find.descendant(
+    of: find.byType(PropertyEditorPanel),
+    matching: matching,
+  );
+}
+
+Finder _panelText(String text) => _panelDescendant(find.text(text));

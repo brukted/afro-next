@@ -39,11 +39,20 @@ MaterialGraphResourceDocument _$MaterialGraphResourceDocumentFromJson(
 ) => MaterialGraphResourceDocument(
   id: json['id'] as String,
   graph: GraphDocument.fromJson(json['graph'] as Map<String, dynamic>),
+  outputSizeSettings: json['outputSizeSettings'] == null
+      ? const MaterialOutputSizeSettings()
+      : MaterialOutputSizeSettings.fromJson(
+          json['outputSizeSettings'] as Map<String, dynamic>,
+        ),
 );
 
 Map<String, dynamic> _$MaterialGraphResourceDocumentToJson(
   MaterialGraphResourceDocument instance,
-) => <String, dynamic>{'id': instance.id, 'graph': instance.graph.toJson()};
+) => <String, dynamic>{
+  'id': instance.id,
+  'graph': instance.graph.toJson(),
+  'outputSizeSettings': instance.outputSizeSettings.toJson(),
+};
 
 MathGraphResourceDocument _$MathGraphResourceDocumentFromJson(
   Map<String, dynamic> json,

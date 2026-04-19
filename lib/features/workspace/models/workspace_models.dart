@@ -1,6 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../graph/models/graph_models.dart';
+import '../../material_graph/material_output_size.dart';
 
 part 'workspace_models.g.dart';
 
@@ -33,7 +34,9 @@ class WorkspaceResourceEntry {
       id: id ?? this.id,
       name: name ?? this.name,
       kind: kind ?? this.kind,
-      parentId: identical(parentId, _sentinel) ? this.parentId : parentId as String?,
+      parentId: identical(parentId, _sentinel)
+          ? this.parentId
+          : parentId as String?,
       documentId: identical(documentId, _sentinel)
           ? this.documentId
           : documentId as String?,
@@ -51,18 +54,22 @@ class MaterialGraphResourceDocument {
   const MaterialGraphResourceDocument({
     required this.id,
     required this.graph,
+    this.outputSizeSettings = const MaterialOutputSizeSettings(),
   });
 
   final String id;
   final GraphDocument graph;
+  final MaterialOutputSizeSettings outputSizeSettings;
 
   MaterialGraphResourceDocument copyWith({
     String? id,
     GraphDocument? graph,
+    MaterialOutputSizeSettings? outputSizeSettings,
   }) {
     return MaterialGraphResourceDocument(
       id: id ?? this.id,
       graph: graph ?? this.graph,
+      outputSizeSettings: outputSizeSettings ?? this.outputSizeSettings,
     );
   }
 
@@ -74,19 +81,16 @@ class MaterialGraphResourceDocument {
 
 @JsonSerializable(explicitToJson: true)
 class MathGraphResourceDocument {
-  const MathGraphResourceDocument({
-    required this.id,
-    required this.graph,
-  });
+  const MathGraphResourceDocument({required this.id, required this.graph});
 
   final String id;
   final GraphDocument graph;
 
-  MathGraphResourceDocument copyWith({
-    String? id,
-    GraphDocument? graph,
-  }) {
-    return MathGraphResourceDocument(id: id ?? this.id, graph: graph ?? this.graph);
+  MathGraphResourceDocument copyWith({String? id, GraphDocument? graph}) {
+    return MathGraphResourceDocument(
+      id: id ?? this.id,
+      graph: graph ?? this.graph,
+    );
   }
 
   factory MathGraphResourceDocument.fromJson(Map<String, dynamic> json) =>
@@ -119,7 +123,9 @@ class ImageResourceDocument {
       id: id ?? this.id,
       sourceName: sourceName ?? this.sourceName,
       encodedBytesBase64: encodedBytesBase64 ?? this.encodedBytesBase64,
-      mimeType: identical(mimeType, _sentinel) ? this.mimeType : mimeType as String?,
+      mimeType: identical(mimeType, _sentinel)
+          ? this.mimeType
+          : mimeType as String?,
     );
   }
 
