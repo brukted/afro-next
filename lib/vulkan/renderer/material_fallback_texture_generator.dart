@@ -84,13 +84,21 @@ class MaterialFallbackTextureGenerator {
       final red = curve.red.valueAt(x).clamp(0, 1).toDouble();
       final green = curve.green.valueAt(x).clamp(0, 1).toDouble();
       final blue = curve.blue.valueAt(x).clamp(0, 1).toDouble();
-      final encodedRed = (math.sqrt(red) * encodedAlpha).clamp(0, 1).toDouble();
-      final encodedGreen = (math.sqrt(green) * encodedAlpha)
-          .clamp(0, 1)
-          .toDouble();
-      final encodedBlue = (math.sqrt(blue) * encodedAlpha)
-          .clamp(0, 1)
-          .toDouble();
+      final encodedRed = _encodeCurveChannel(
+        inputValue: x,
+        channelValue: red,
+        luminanceValue: lum,
+      );
+      final encodedGreen = _encodeCurveChannel(
+        inputValue: x,
+        channelValue: green,
+        luminanceValue: lum,
+      );
+      final encodedBlue = _encodeCurveChannel(
+        inputValue: x,
+        channelValue: blue,
+        luminanceValue: lum,
+      );
       final offset = index * 4;
       bytes[offset] = _toByte(encodedBlue);
       bytes[offset + 1] = _toByte(encodedGreen);
@@ -98,6 +106,21 @@ class MaterialFallbackTextureGenerator {
       bytes[offset + 3] = _toByte(encodedAlpha);
     }
     return bytes;
+  }
+
+  double _encodeCurveChannel({
+    required double inputValue,
+    required double channelValue,
+    required double luminanceValue,
+  }) {
+    if (luminanceValue <= 0.0001) {
+      return 0.0;
+    }
+    final safeInput = inputValue <= 0.0001 ? 1.0 : inputValue;
+    final combinedValue = ((channelValue * luminanceValue) / safeInput)
+        .clamp(0, 1)
+        .toDouble();
+    return math.sqrt(combinedValue * luminanceValue).clamp(0, 1).toDouble();
   }
 
   Uint8List _gradientTextureBytes(GraphGradientData gradient) {

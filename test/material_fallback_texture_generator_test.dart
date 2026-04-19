@@ -12,6 +12,29 @@ import 'package:vector_math/vector_math.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('generates a curve LUT that preserves the identity curve', () async {
+    const generator = MaterialFallbackTextureGenerator(previewExtent: 64);
+    final curveTexture = await generator.generate(
+      GraphValueData.colorCurve(GraphColorCurveData.identity()),
+    );
+
+    expect(curveTexture, isNotNull);
+    expect(curveTexture!.width, 256);
+    expect(curveTexture.height, 1);
+
+    const sampleIndex = 128;
+    final x = sampleIndex / 255.0;
+    final offset = sampleIndex * 4;
+    final encodedBlue = curveTexture.bytes[offset] / 255.0;
+    final encodedGreen = curveTexture.bytes[offset + 1] / 255.0;
+    final encodedRed = curveTexture.bytes[offset + 2] / 255.0;
+    final encodedAlpha = curveTexture.bytes[offset + 3] / 255.0;
+
+    expect(_decodeCurveChannel(encodedRed, encodedAlpha), closeTo(x, 0.015));
+    expect(_decodeCurveChannel(encodedGreen, encodedAlpha), closeTo(x, 0.015));
+    expect(_decodeCurveChannel(encodedBlue, encodedAlpha), closeTo(x, 0.015));
+  });
+
   test('generates gradient text image and svg fallback textures', () async {
     final workspaceController = WorkspaceController.preview()..initializeForPreview();
     final tempDir = await Directory.systemTemp.createTemp('eyecandy-fallbacks');
@@ -109,4 +132,11 @@ Future<List<int>> _createPngBytes() async {
   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   return byteData!.buffer.asUint8List();
+}
+
+double _decodeCurveChannel(double encodedChannel, double encodedLuminance) {
+  if (encodedLuminance <= 0.0001) {
+    return 0.0;
+  }
+  return (encodedChannel * encodedChannel) / encodedLuminance;
 }
