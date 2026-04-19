@@ -96,6 +96,52 @@ void main() {
       1.0,
     ]);
   });
+
+  test('compiler preserves workspace assets and text-generated textures', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final image = catalog.instantiateNode(
+      definitionId: 'image_node',
+      position: vmath.Vector2.zero(),
+    );
+    final text = catalog.instantiateNode(
+      definitionId: 'text_node',
+      position: vmath.Vector2(320, 0),
+    );
+    final gradientMap = catalog.instantiateNode(
+      definitionId: 'gradientmap_node',
+      position: vmath.Vector2(640, 0),
+    );
+    final graph = GraphDocument(
+      id: 'asset-graph',
+      name: 'Assets',
+      nodes: [image, text, gradientMap],
+      links: [
+        _connect(
+          fromNode: image,
+          fromKey: '_output',
+          toNode: gradientMap,
+          toKey: 'MainTex',
+        ),
+      ],
+    );
+
+    final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
+    final imagePass = compiled.passForNode(image.id)!;
+    final textPass = compiled.passForNode(text.id)!;
+    final gradientPass = compiled.passForNode(gradientMap.id)!;
+
+    expect(imagePass.textureInputs.single.bindingKey, 'MainTex');
+    expect(imagePass.textureInputs.single.valueType, GraphValueType.workspaceResource);
+    expect(textPass.textureInputs.single.valueType, GraphValueType.textBlock);
+    expect(
+      gradientPass.textureInputs.firstWhere((input) => input.bindingKey == 'ColorLUT').valueType,
+      GraphValueType.gradient,
+    );
+    expect(
+      gradientPass.textureInputs.firstWhere((input) => input.bindingKey == 'MainTex').isConnected,
+      isTrue,
+    );
+  });
 }
 
 GraphLinkDocument _connect({

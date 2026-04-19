@@ -70,7 +70,8 @@ void main() {
     final listRect = tester.getRect(find.byType(ListView));
     final backgroundPoint = Offset(listRect.left + 24, listRect.bottom - 24);
     await _secondaryClickAt(tester, backgroundPoint);
-    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('Import Image'), findsOneWidget);
+    expect(find.text('Import SVG'), findsOneWidget);
     expect(find.text('Paste'), findsOneWidget);
     expect(find.text('Folder'), findsOneWidget);
 

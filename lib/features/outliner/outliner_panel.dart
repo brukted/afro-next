@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../shared/widgets/panel_frame.dart';
 import '../workspace/models/workspace_models.dart';
@@ -157,7 +158,8 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
         _menuAction(_OutlinerMenuAction.newMaterialGraph, 'Material Graph'),
         _menuAction(_OutlinerMenuAction.newMathGraph, 'Math Graph'),
         const PopupMenuDivider(height: 10),
-        _disabledMenuItem('Import'),
+        _menuAction(_OutlinerMenuAction.importImage, 'Import Image'),
+        _menuAction(_OutlinerMenuAction.importSvg, 'Import SVG'),
         const PopupMenuDivider(height: 10),
         _disabledMenuItem('Paste'),
       ],
@@ -174,6 +176,16 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
         return;
       case _OutlinerMenuAction.newMathGraph:
         widget.controller.createMathGraphAt(widget.controller.workspace.rootFolderId);
+        return;
+      case _OutlinerMenuAction.importImage:
+        _runAfterMenuDismissal(
+          () => widget.controller.importImageAt(widget.controller.workspace.rootFolderId),
+        );
+        return;
+      case _OutlinerMenuAction.importSvg:
+        _runAfterMenuDismissal(
+          () => widget.controller.importSvgAt(widget.controller.workspace.rootFolderId),
+        );
         return;
       case null:
       case _OutlinerMenuAction.rename:
@@ -215,6 +227,14 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
         _expandedFolderIds.add(resource.id);
         widget.controller.createMathGraphAt(resource.id);
         return;
+      case _OutlinerMenuAction.importImage:
+        _expandedFolderIds.add(resource.id);
+        _runAfterMenuDismissal(() => widget.controller.importImageAt(resource.id));
+        return;
+      case _OutlinerMenuAction.importSvg:
+        _expandedFolderIds.add(resource.id);
+        _runAfterMenuDismissal(() => widget.controller.importSvgAt(resource.id));
+        return;
       case _OutlinerMenuAction.rename:
         await _showRenameDialog(context, resource: resource);
         return;
@@ -234,6 +254,9 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
       _menuAction(_OutlinerMenuAction.newFolder, 'Folder'),
       _menuAction(_OutlinerMenuAction.newMaterialGraph, 'Material Graph'),
       _menuAction(_OutlinerMenuAction.newMathGraph, 'Math Graph'),
+      const PopupMenuDivider(height: 10),
+      _menuAction(_OutlinerMenuAction.importImage, 'Import Image'),
+      _menuAction(_OutlinerMenuAction.importSvg, 'Import SVG'),
       const PopupMenuDivider(height: 10),
       _menuAction(
         _OutlinerMenuAction.rename,
@@ -414,6 +437,19 @@ class _OutlinerPanelState extends State<OutlinerPanel> {
     _lastSyncedSelectionId = selectionId;
     _expandedFolderIds.addAll(widget.controller.ancestorIdsOf(selectionId));
   }
+
+  void _runAfterMenuDismissal(Future<void> Function() action) {
+    SchedulerBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (!mounted) {
+        return;
+      }
+      await action();
+    });
+  }
 }
 
 class _WorkspaceStatusRow extends StatelessWidget {
@@ -553,6 +589,10 @@ class _OutlinerRow extends StatelessWidget {
         return Icons.account_tree_outlined;
       case WorkspaceResourceKind.mathGraph:
         return Icons.functions_outlined;
+      case WorkspaceResourceKind.image:
+        return Icons.image_outlined;
+      case WorkspaceResourceKind.svg:
+        return Icons.polyline_outlined;
     }
   }
 }
@@ -562,6 +602,8 @@ enum _OutlinerMenuAction {
   newFolder,
   newMaterialGraph,
   newMathGraph,
+  importImage,
+  importSvg,
   rename,
   delete,
 }

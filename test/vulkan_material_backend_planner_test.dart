@@ -90,6 +90,58 @@ void main() {
     expect(transformPass.outputTarget.usage, VulkanImageTargetUsage.finalOutput);
     expect(plan.finalOutputTargetId, transformPass.outputTarget.id);
   });
+
+  test('planner supports asset-backed image svg and text nodes', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final image = catalog.instantiateNode(
+      definitionId: 'image_node',
+      position: vmath.Vector2.zero(),
+    );
+    final svg = catalog.instantiateNode(
+      definitionId: 'svg_node',
+      position: vmath.Vector2(240, 0),
+    );
+    final text = catalog.instantiateNode(
+      definitionId: 'text_node',
+      position: vmath.Vector2(480, 0),
+    );
+    final graph = GraphDocument(
+      id: 'asset-plan',
+      name: 'Asset Plan',
+      nodes: [image, svg, text],
+      links: const [],
+    );
+
+    final compiled = MaterialGraphCompiler(catalog: catalog).compile(graph);
+    final plan = const VulkanMaterialBackendPlanner().createPlan(compiled);
+
+    final imagePass = plan.passForNode(image.id)!;
+    final svgPass = plan.passForNode(svg.id)!;
+    final textPass = plan.passForNode(text.id)!;
+
+    expect(imagePass.isSupported, isTrue);
+    expect(svgPass.isSupported, isTrue);
+    expect(textPass.isSupported, isTrue);
+    expect(imagePass.shader?.assetId, 'material/image-basic.frag');
+    expect(
+      imagePass.descriptorBindings.where(
+        (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
+      ),
+      hasLength(1),
+    );
+    expect(
+      svgPass.descriptorBindings.where(
+        (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
+      ),
+      hasLength(1),
+    );
+    expect(
+      textPass.descriptorBindings.where(
+        (binding) => binding.kind == VulkanDescriptorBindingKind.sampledImage,
+      ),
+      hasLength(1),
+    );
+  });
 }
 
 GraphLinkDocument _connect({

@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as path;
 
 import '../../services/filesystem/app_file_picker.dart';
 import '../../services/filesystem/workspace_file_store.dart';
@@ -113,6 +117,47 @@ class WorkspaceController extends ChangeNotifier {
     return workspace.mathGraphs.firstWhereOrNull(
       (entry) => entry.id == resource.documentId,
     );
+  }
+
+  ImageResourceDocument? get openedImageDocument {
+    final resource = openedResource;
+    if (resource == null || resource.kind != WorkspaceResourceKind.image) {
+      return null;
+    }
+
+    return workspace.images.firstWhereOrNull((entry) => entry.id == resource.documentId);
+  }
+
+  SvgResourceDocument? get openedSvgDocument {
+    final resource = openedResource;
+    if (resource == null || resource.kind != WorkspaceResourceKind.svg) {
+      return null;
+    }
+
+    return workspace.svgs.firstWhereOrNull((entry) => entry.id == resource.documentId);
+  }
+
+  ImageResourceDocument? imageDocumentByResourceId(String resourceId) {
+    final resource = resourceById(resourceId);
+    if (resource == null || resource.kind != WorkspaceResourceKind.image) {
+      return null;
+    }
+    return workspace.images.firstWhereOrNull((entry) => entry.id == resource.documentId);
+  }
+
+  SvgResourceDocument? svgDocumentByResourceId(String resourceId) {
+    final resource = resourceById(resourceId);
+    if (resource == null || resource.kind != WorkspaceResourceKind.svg) {
+      return null;
+    }
+    return workspace.svgs.firstWhereOrNull((entry) => entry.id == resource.documentId);
+  }
+
+  List<WorkspaceResourceEntry> resourcesForKinds(Set<WorkspaceResourceKind> kinds) {
+    return workspace.resources
+        .where((entry) => kinds.contains(entry.kind))
+        .toList(growable: false)
+      ..sort((left, right) => left.name.toLowerCase().compareTo(right.name.toLowerCase()));
   }
 
   Future<void> initialize() async {
@@ -262,6 +307,10 @@ class WorkspaceController extends ChangeNotifier {
     createMathGraphAt(_creationParentId());
   }
 
+  Future<void> importImage() => importImageAt(_creationParentId());
+
+  Future<void> importSvg() => importSvgAt(_creationParentId());
+
   void createFolderAt(String? parentId) {
     final folder = WorkspaceResourceEntry(
       id: _idFactory.next(),
@@ -323,6 +372,81 @@ class WorkspaceController extends ChangeNotifier {
       workspace.copyWith(
         resources: [...workspace.resources, resource],
         mathGraphs: [...workspace.mathGraphs, document],
+      ),
+    );
+  }
+
+  Future<void> importImageAt(String? parentId) async {
+    final pickedPath = await _filePicker.openImageResourceFile();
+    if (pickedPath == null) {
+      return;
+    }
+    await importImageFileAt(pickedPath, parentId);
+  }
+
+  Future<void> importSvgAt(String? parentId) async {
+    final pickedPath = await _filePicker.openSvgResourceFile();
+    if (pickedPath == null) {
+      return;
+    }
+    await importSvgFileAt(pickedPath, parentId);
+  }
+
+  Future<void> importImageFileAt(String filePath, String? parentId) async {
+    final bytes = await File(filePath).readAsBytes();
+    final sourceName = path.basename(filePath);
+    final document = ImageResourceDocument(
+      id: _idFactory.next(),
+      sourceName: sourceName,
+      encodedBytesBase64: base64Encode(bytes),
+      mimeType: _mimeTypeForPath(filePath),
+    );
+    final resource = WorkspaceResourceEntry(
+      id: _idFactory.next(),
+      name: _uniqueResourceName(
+        sourceName,
+        WorkspaceResourceKind.image,
+      ),
+      kind: WorkspaceResourceKind.image,
+      parentId: _normalizeParentId(parentId),
+      documentId: document.id,
+    );
+
+    _selectedResourceId = resource.id;
+    _openedResourceId = resource.id;
+    _replaceWorkspace(
+      workspace.copyWith(
+        resources: [...workspace.resources, resource],
+        images: [...workspace.images, document],
+      ),
+    );
+  }
+
+  Future<void> importSvgFileAt(String filePath, String? parentId) async {
+    final svgText = await File(filePath).readAsString();
+    final sourceName = path.basename(filePath);
+    final document = SvgResourceDocument(
+      id: _idFactory.next(),
+      sourceName: sourceName,
+      svgText: svgText,
+    );
+    final resource = WorkspaceResourceEntry(
+      id: _idFactory.next(),
+      name: _uniqueResourceName(
+        sourceName,
+        WorkspaceResourceKind.svg,
+      ),
+      kind: WorkspaceResourceKind.svg,
+      parentId: _normalizeParentId(parentId),
+      documentId: document.id,
+    );
+
+    _selectedResourceId = resource.id;
+    _openedResourceId = resource.id;
+    _replaceWorkspace(
+      workspace.copyWith(
+        resources: [...workspace.resources, resource],
+        svgs: [...workspace.svgs, document],
       ),
     );
   }
@@ -412,6 +536,16 @@ class WorkspaceController extends ChangeNotifier {
         .map((entry) => entry.documentId)
         .nonNulls
         .toSet();
+    final removedImageDocumentIds = removedResources
+        .where((entry) => entry.kind == WorkspaceResourceKind.image)
+        .map((entry) => entry.documentId)
+        .nonNulls
+        .toSet();
+    final removedSvgDocumentIds = removedResources
+        .where((entry) => entry.kind == WorkspaceResourceKind.svg)
+        .map((entry) => entry.documentId)
+        .nonNulls
+        .toSet();
 
     final updatedWorkspace = workspace.copyWith(
       resources: workspace.resources
@@ -422,6 +556,12 @@ class WorkspaceController extends ChangeNotifier {
           .toList(growable: false),
       mathGraphs: workspace.mathGraphs
           .where((entry) => !removedMathDocumentIds.contains(entry.id))
+          .toList(growable: false),
+      images: workspace.images
+          .where((entry) => !removedImageDocumentIds.contains(entry.id))
+          .toList(growable: false),
+      svgs: workspace.svgs
+          .where((entry) => !removedSvgDocumentIds.contains(entry.id))
           .toList(growable: false),
     );
 
@@ -522,6 +662,32 @@ class WorkspaceController extends ChangeNotifier {
     var index = 1;
     while (true) {
       final candidate = '$base $index';
+      if (!existingNames.contains(candidate)) {
+        return candidate;
+      }
+      index += 1;
+    }
+  }
+
+  String _uniqueResourceName(String preferredName, WorkspaceResourceKind kind) {
+    final normalized = preferredName.trim();
+    if (normalized.isEmpty) {
+      return _nextName(kind.name, kind);
+    }
+    final existingNames = workspace.resources
+        .where((entry) => entry.kind == kind)
+        .map((entry) => entry.name)
+        .toSet();
+    if (!existingNames.contains(normalized)) {
+      return normalized;
+    }
+    final extension = path.extension(normalized);
+    final baseName = extension.isEmpty
+        ? normalized
+        : normalized.substring(0, normalized.length - extension.length);
+    var index = 2;
+    while (true) {
+      final candidate = '$baseName $index$extension';
       if (!existingNames.contains(candidate)) {
         return candidate;
       }
@@ -638,6 +804,20 @@ class WorkspaceController extends ChangeNotifier {
           ),
         ),
       ],
+      images: const <ImageResourceDocument>[],
+      svgs: const <SvgResourceDocument>[],
     );
+  }
+
+  String? _mimeTypeForPath(String filePath) {
+    final extension = path.extension(filePath).toLowerCase();
+    return switch (extension) {
+      '.png' => 'image/png',
+      '.jpg' || '.jpeg' => 'image/jpeg',
+      '.gif' => 'image/gif',
+      '.bmp' => 'image/bmp',
+      '.webp' => 'image/webp',
+      _ => null,
+    };
   }
 }

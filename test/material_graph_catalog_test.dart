@@ -142,10 +142,39 @@ void main() {
 
   test('catalog exposes Afro fullscreen expansion nodes with expected contracts', () {
     final catalog = MaterialGraphCatalog(IdFactory());
+    final image = catalog.definitionById('image_node');
+    final svg = catalog.definitionById('svg_node');
+    final text = catalog.definitionById('text_node');
     final levels = catalog.definitionById('levels_node');
     final curve = catalog.definitionById('curve_node');
     final transform = catalog.definitionById('transform_node');
     final gradientMap = catalog.definitionById('gradientmap_node');
+
+    expect(image.runtime.shaderAssetId, 'material/image-basic.frag');
+    expect(
+      image.propertyDefinition('resource').valueType,
+      GraphValueType.workspaceResource,
+    );
+    expect(
+      image.propertyDefinition('resource').resourceKinds,
+      [GraphResourceKind.image],
+    );
+    expect(
+      image.propertyDefinition('resource').runtimeTextureBindingKey,
+      'MainTex',
+    );
+
+    expect(svg.runtime.shaderAssetId, 'material/image-basic.frag');
+    expect(
+      svg.propertyDefinition('resource').resourceKinds,
+      [GraphResourceKind.svg],
+    );
+
+    expect(text.runtime.shaderAssetId, 'material/image-basic.frag');
+    expect(
+      text.propertyDefinition('content').valueType,
+      GraphValueType.textBlock,
+    );
 
     expect(levels.runtime.shaderAssetId, 'material/levels.frag');
     expect(levels.properties.map((property) => property.key), [
@@ -183,6 +212,10 @@ void main() {
       'horizontal',
       '_output',
     ]);
+    expect(
+      gradientMap.propertyDefinition('ColorLUT').valueType,
+      GraphValueType.gradient,
+    );
   });
 }
 

@@ -39,6 +39,16 @@ Future<void> configureServiceLocator({
     ..registerLazySingleton<MaterialGraphCatalog>(
       () => MaterialGraphCatalog(serviceLocator<IdFactory>()),
     )
+    ..registerLazySingleton<WorkspaceController>(
+      () => WorkspaceController(
+        idFactory: serviceLocator<IdFactory>(),
+        preferences: serviceLocator<AppPreferences>(),
+        filePicker: serviceLocator<AppFilePicker>(),
+        logger: serviceLocator<AppLogger>(),
+        fileStore: serviceLocator<WorkspaceFileStore>(),
+      ),
+      dispose: (controller) => controller.dispose(),
+    )
     ..registerLazySingleton<PlatformSurfaceBridge>(
       PlatformSurfaceBridge.current,
     )
@@ -52,6 +62,7 @@ Future<void> configureServiceLocator({
     ..registerLazySingleton<RendererFacade>(
       () => VulkanPreviewRendererFacade(
         bootstrapper: serviceLocator<VulkanBootstrapper>(),
+        workspaceController: serviceLocator<WorkspaceController>(),
       ),
       dispose: (renderer) => renderer.dispose(),
     )
@@ -75,14 +86,5 @@ Future<void> configureServiceLocator({
       ),
       dispose: (controller) => controller.dispose(),
     )
-    ..registerLazySingleton<WorkspaceController>(
-      () => WorkspaceController(
-        idFactory: serviceLocator<IdFactory>(),
-        preferences: serviceLocator<AppPreferences>(),
-        filePicker: serviceLocator<AppFilePicker>(),
-        logger: serviceLocator<AppLogger>(),
-        fileStore: serviceLocator<WorkspaceFileStore>(),
-      ),
-      dispose: (controller) => controller.dispose(),
-    );
+    ;
 }

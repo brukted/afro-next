@@ -12,9 +12,12 @@ enum GraphValueType {
   float4,
   float3x3,
   stringValue,
+  workspaceResource,
   boolean,
   enumChoice,
+  gradient,
   colorBezierCurve,
+  textBlock,
 }
 
 enum GraphValueUnit { none, rotation, position, power2, color, path }
@@ -24,6 +27,8 @@ enum GraphPropertyType { input, output, descriptor }
 enum GraphSocketDirection { input, output }
 
 enum GraphCurveChannel { luminance, red, green, blue, alpha }
+
+enum GraphResourceKind { image, svg }
 
 class EnumChoiceOption {
   const EnumChoiceOption({
@@ -485,6 +490,174 @@ class GraphColorCurveData {
   }
 }
 
+class GraphGradientStopData {
+  const GraphGradientStopData({required this.position, required this.color});
+
+  final double position;
+  final Vector4 color;
+
+  GraphGradientStopData copyWith({double? position, Vector4? color}) {
+    return GraphGradientStopData(
+      position: position ?? this.position,
+      color: color ?? this.color,
+    );
+  }
+
+  GraphGradientStopData clone() =>
+      GraphGradientStopData(position: position, color: color.clone());
+
+  factory GraphGradientStopData.fromJson(Map<String, dynamic> json) {
+    return GraphGradientStopData(
+      position: (json['position'] as num?)?.toDouble() ?? 0,
+      color: _vector4FromJson(json['color']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'position': position,
+    'color': _vector4ToJson(color),
+  };
+}
+
+class GraphGradientData {
+  const GraphGradientData({required this.stops});
+
+  final List<GraphGradientStopData> stops;
+
+  factory GraphGradientData.identity() {
+    return GraphGradientData(
+      stops: [
+        GraphGradientStopData(position: 0, color: Vector4.zero()),
+        GraphGradientStopData(position: 1, color: Vector4.all(1)),
+      ],
+    );
+  }
+
+  GraphGradientData clone() => GraphGradientData(
+    stops: stops.map((entry) => entry.clone()).toList(growable: false),
+  );
+
+  GraphGradientData copyWith({List<GraphGradientStopData>? stops}) {
+    return GraphGradientData(stops: stops ?? this.stops);
+  }
+
+  factory GraphGradientData.fromJson(Map<String, dynamic> json) {
+    final rawStops = json['stops'];
+    if (rawStops is! List) {
+      return GraphGradientData.identity();
+    }
+    final stops = rawStops
+        .whereType<Map<String, dynamic>>()
+        .map(GraphGradientStopData.fromJson)
+        .toList(growable: false);
+    if (stops.length < 2) {
+      return GraphGradientData.identity();
+    }
+    return GraphGradientData(stops: stops).normalized();
+  }
+
+  Map<String, dynamic> toJson() => {
+    'stops': normalized().stops.map((entry) => entry.toJson()).toList(growable: false),
+  };
+
+  GraphGradientData normalized() {
+    if (stops.isEmpty) {
+      return GraphGradientData.identity();
+    }
+    final normalizedStops = stops
+        .map(
+          (stop) => GraphGradientStopData(
+            position: stop.position.clamp(0, 1).toDouble(),
+            color: Vector4(
+              stop.color.x.clamp(0, 1).toDouble(),
+              stop.color.y.clamp(0, 1).toDouble(),
+              stop.color.z.clamp(0, 1).toDouble(),
+              stop.color.w.clamp(0, 1).toDouble(),
+            ),
+          ),
+        )
+        .toList(growable: true)
+      ..sort((left, right) => left.position.compareTo(right.position));
+    if (normalizedStops.length == 1) {
+      normalizedStops.add(
+        GraphGradientStopData(
+          position: 1,
+          color: normalizedStops.first.color.clone(),
+        ),
+      );
+    }
+    return GraphGradientData(stops: List<GraphGradientStopData>.unmodifiable(normalizedStops));
+  }
+}
+
+class GraphTextData {
+  const GraphTextData({
+    required this.text,
+    required this.fontFamily,
+    required this.fontSize,
+    required this.backgroundColor,
+    required this.textColor,
+  });
+
+  final String text;
+  final String fontFamily;
+  final double fontSize;
+  final Vector4 backgroundColor;
+  final Vector4 textColor;
+
+  factory GraphTextData.defaults() {
+    return GraphTextData(
+      text: 'Text',
+      fontFamily: 'Helvetica',
+      fontSize: 36,
+      backgroundColor: Vector4.zero(),
+      textColor: Vector4.all(1),
+    );
+  }
+
+  GraphTextData clone() => GraphTextData(
+    text: text,
+    fontFamily: fontFamily,
+    fontSize: fontSize,
+    backgroundColor: backgroundColor.clone(),
+    textColor: textColor.clone(),
+  );
+
+  GraphTextData copyWith({
+    String? text,
+    String? fontFamily,
+    double? fontSize,
+    Vector4? backgroundColor,
+    Vector4? textColor,
+  }) {
+    return GraphTextData(
+      text: text ?? this.text,
+      fontFamily: fontFamily ?? this.fontFamily,
+      fontSize: fontSize ?? this.fontSize,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      textColor: textColor ?? this.textColor,
+    );
+  }
+
+  factory GraphTextData.fromJson(Map<String, dynamic> json) {
+    return GraphTextData(
+      text: json['text'] as String? ?? 'Text',
+      fontFamily: json['fontFamily'] as String? ?? 'Helvetica',
+      fontSize: (json['fontSize'] as num?)?.toDouble() ?? 36,
+      backgroundColor: _vector4FromJson(json['backgroundColor']),
+      textColor: _vector4FromJson(json['textColor']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'fontFamily': fontFamily,
+    'fontSize': fontSize,
+    'backgroundColor': _vector4ToJson(backgroundColor),
+    'textColor': _vector4ToJson(textColor),
+  };
+}
+
 class GraphPropertyDefinition {
   const GraphPropertyDefinition({
     required this.key,
@@ -501,6 +674,7 @@ class GraphPropertyDefinition {
     this.step,
     this.enumOptions = const <EnumChoiceOption>[],
     this.runtimeTextureBindingKey,
+    this.resourceKinds = const <GraphResourceKind>[],
   });
 
   final String key;
@@ -517,6 +691,7 @@ class GraphPropertyDefinition {
   final double? step;
   final List<EnumChoiceOption> enumOptions;
   final String? runtimeTextureBindingKey;
+  final List<GraphResourceKind> resourceKinds;
 
   bool get isSocket => socket;
 
@@ -580,9 +755,23 @@ List<double> asFloat3x3(Object value) => List<double>.unmodifiable(
 GraphColorCurveData asColorCurve(Object value) =>
     (value as GraphColorCurveData).clone();
 
+String asResourceId(Object value) => value as String;
+
+GraphGradientData asGradient(Object value) =>
+    (value as GraphGradientData).clone();
+
+GraphTextData asTextData(Object value) => (value as GraphTextData).clone();
+
 Map<String, dynamic> _vector2ToJson(Vector2 value) => {
   'x': value.x,
   'y': value.y,
+};
+
+Map<String, dynamic> _vector4ToJson(Vector4 value) => {
+  'x': value.x,
+  'y': value.y,
+  'z': value.z,
+  'w': value.w,
 };
 
 Vector2 _vector2FromJson(Object? json) {
@@ -598,6 +787,28 @@ Vector2 _vector2FromJson(Object? json) {
   }
 
   return Vector2.zero();
+}
+
+Vector4 _vector4FromJson(Object? json) {
+  if (json is List) {
+    return Vector4(
+      _numAt(json, 0),
+      _numAt(json, 1),
+      _numAt(json, 2, fallback: 0),
+      _numAt(json, 3, fallback: 1),
+    );
+  }
+
+  if (json is Map<String, dynamic>) {
+    return Vector4(
+      (json['x'] as num?)?.toDouble() ?? 0,
+      (json['y'] as num?)?.toDouble() ?? 0,
+      (json['z'] as num?)?.toDouble() ?? 0,
+      (json['w'] as num?)?.toDouble() ?? 1,
+    );
+  }
+
+  return Vector4(0, 0, 0, 1);
 }
 
 GraphBezierSpline _splineFromJson(Object? json) {

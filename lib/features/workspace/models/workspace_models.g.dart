@@ -30,6 +30,8 @@ const _$WorkspaceResourceKindEnumMap = {
   WorkspaceResourceKind.folder: 'folder',
   WorkspaceResourceKind.materialGraph: 'materialGraph',
   WorkspaceResourceKind.mathGraph: 'mathGraph',
+  WorkspaceResourceKind.image: 'image',
+  WorkspaceResourceKind.svg: 'svg',
 };
 
 MaterialGraphResourceDocument _$MaterialGraphResourceDocumentFromJson(
@@ -54,6 +56,39 @@ Map<String, dynamic> _$MathGraphResourceDocumentToJson(
   MathGraphResourceDocument instance,
 ) => <String, dynamic>{'id': instance.id, 'graph': instance.graph.toJson()};
 
+ImageResourceDocument _$ImageResourceDocumentFromJson(
+  Map<String, dynamic> json,
+) => ImageResourceDocument(
+  id: json['id'] as String,
+  sourceName: json['sourceName'] as String,
+  encodedBytesBase64: json['encodedBytesBase64'] as String,
+  mimeType: json['mimeType'] as String?,
+);
+
+Map<String, dynamic> _$ImageResourceDocumentToJson(
+  ImageResourceDocument instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'sourceName': instance.sourceName,
+  'encodedBytesBase64': instance.encodedBytesBase64,
+  'mimeType': instance.mimeType,
+};
+
+SvgResourceDocument _$SvgResourceDocumentFromJson(Map<String, dynamic> json) =>
+    SvgResourceDocument(
+      id: json['id'] as String,
+      sourceName: json['sourceName'] as String,
+      svgText: json['svgText'] as String,
+    );
+
+Map<String, dynamic> _$SvgResourceDocumentToJson(
+  SvgResourceDocument instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'sourceName': instance.sourceName,
+  'svgText': instance.svgText,
+};
+
 WorkspaceProjectDocument _$WorkspaceProjectDocumentFromJson(
   Map<String, dynamic> json,
 ) => WorkspaceProjectDocument(
@@ -72,6 +107,18 @@ WorkspaceProjectDocument _$WorkspaceProjectDocumentFromJson(
   mathGraphs: (json['mathGraphs'] as List<dynamic>)
       .map((e) => MathGraphResourceDocument.fromJson(e as Map<String, dynamic>))
       .toList(),
+  images:
+      (json['images'] as List<dynamic>?)
+          ?.map(
+            (e) => ImageResourceDocument.fromJson(e as Map<String, dynamic>),
+          )
+          .toList() ??
+      const <ImageResourceDocument>[],
+  svgs:
+      (json['svgs'] as List<dynamic>?)
+          ?.map((e) => SvgResourceDocument.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <SvgResourceDocument>[],
 );
 
 Map<String, dynamic> _$WorkspaceProjectDocumentToJson(
@@ -83,4 +130,6 @@ Map<String, dynamic> _$WorkspaceProjectDocumentToJson(
   'resources': instance.resources.map((e) => e.toJson()).toList(),
   'materialGraphs': instance.materialGraphs.map((e) => e.toJson()).toList(),
   'mathGraphs': instance.mathGraphs.map((e) => e.toJson()).toList(),
+  'images': instance.images.map((e) => e.toJson()).toList(),
+  'svgs': instance.svgs.map((e) => e.toJson()).toList(),
 };

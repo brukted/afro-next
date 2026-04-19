@@ -1,9 +1,14 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:eyecandy/features/workspace/models/workspace_models.dart';
 import 'package:eyecandy/features/workspace/workspace_controller.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('creates graphs inside an explicit folder', () {
     final controller = WorkspaceController.preview()..initializeForPreview();
     final materialsFolder = controller.workspace.resources.firstWhere(
@@ -82,4 +87,46 @@ void main() {
     expect(controller.workspace.materialGraphs, isEmpty);
     expect(controller.selectedResourceId, controller.workspace.rootFolderId);
   });
+
+  test('imports image and svg resources into the workspace', () async {
+    final controller = WorkspaceController.preview()..initializeForPreview();
+    final tempDir = await Directory.systemTemp.createTemp('eyecandy-assets');
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final imagePath = '${tempDir.path}/checker.png';
+    final svgPath = '${tempDir.path}/shape.svg';
+    await File(imagePath).writeAsBytes(await _createPngBytes());
+    await File(svgPath).writeAsString(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8">'
+      '<rect width="8" height="8" fill="#ff00ff" />'
+      '</svg>',
+    );
+
+    await controller.importImageFileAt(imagePath, controller.workspace.rootFolderId);
+    await controller.importSvgFileAt(svgPath, controller.workspace.rootFolderId);
+
+    final imageResource = controller.workspace.resources.firstWhere(
+      (entry) => entry.kind == WorkspaceResourceKind.image,
+    );
+    final svgResource = controller.workspace.resources.firstWhere(
+      (entry) => entry.kind == WorkspaceResourceKind.svg,
+    );
+
+    expect(controller.imageDocumentByResourceId(imageResource.id)?.sourceName, 'checker.png');
+    expect(controller.svgDocumentByResourceId(svgResource.id)?.sourceName, 'shape.svg');
+    expect(controller.openedResourceId, svgResource.id);
+  });
+}
+
+Future<List<int>> _createPngBytes() async {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  canvas.drawRect(
+    const ui.Rect.fromLTWH(0, 0, 4, 4),
+    ui.Paint()..color = const ui.Color(0xFFFF00FF),
+  );
+  final image = await recorder.endRecording().toImage(4, 4);
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  return byteData!.buffer.asUint8List();
 }

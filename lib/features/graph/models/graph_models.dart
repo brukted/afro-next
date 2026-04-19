@@ -14,9 +14,12 @@ class GraphValueData {
     this.floatValue,
     this.floatValues,
     this.stringValue,
+    this.resourceIdValue,
     this.boolValue,
     this.enumValue,
+    this.gradientValue,
     this.curveValue,
+    this.textValue,
   });
 
   const GraphValueData.integer(int value)
@@ -75,6 +78,9 @@ class GraphValueData {
   const GraphValueData.stringValue(String value)
     : this(valueType: GraphValueType.stringValue, stringValue: value);
 
+  const GraphValueData.workspaceResource(String value)
+    : this(valueType: GraphValueType.workspaceResource, resourceIdValue: value);
+
   const GraphValueData.boolean(bool value)
     : this(valueType: GraphValueType.boolean, boolValue: value);
 
@@ -87,15 +93,27 @@ class GraphValueData {
         curveValue: value.clone(),
       );
 
+  GraphValueData.gradient(GraphGradientData value)
+    : this(
+        valueType: GraphValueType.gradient,
+        gradientValue: value.clone(),
+      );
+
+  GraphValueData.textBlock(GraphTextData value)
+    : this(valueType: GraphValueType.textBlock, textValue: value.clone());
+
   final GraphValueType valueType;
   final int? integerValue;
   final List<int>? integerValues;
   final double? floatValue;
   final List<double>? floatValues;
   final String? stringValue;
+  final String? resourceIdValue;
   final bool? boolValue;
   final int? enumValue;
+  final GraphGradientData? gradientValue;
   final GraphColorCurveData? curveValue;
+  final GraphTextData? textValue;
 
   factory GraphValueData.fromJson(Map<String, dynamic> json) {
     final rawType = json['valueType'] as String?;
@@ -140,6 +158,10 @@ class GraphValueData {
         return GraphValueData.float3x3(_doubleListFromJson(json['floatValues'], 9));
       case 'stringValue':
         return GraphValueData.stringValue(json['stringValue'] as String? ?? '');
+      case 'workspaceResource':
+        return GraphValueData.workspaceResource(
+          json['resourceIdValue'] as String? ?? '',
+        );
       case 'boolean':
         return GraphValueData.boolean(json['boolValue'] as bool? ?? false);
       case 'colorBezierCurve':
@@ -148,6 +170,20 @@ class GraphValueData {
           rawCurve is Map<String, dynamic>
               ? GraphColorCurveData.fromJson(rawCurve)
               : GraphColorCurveData.identity(),
+        );
+      case 'gradient':
+        final rawGradient = json['gradientValue'];
+        return GraphValueData.gradient(
+          rawGradient is Map<String, dynamic>
+              ? GraphGradientData.fromJson(rawGradient)
+              : GraphGradientData.identity(),
+        );
+      case 'textBlock':
+        final rawText = json['textValue'];
+        return GraphValueData.textBlock(
+          rawText is Map<String, dynamic>
+              ? GraphTextData.fromJson(rawText)
+              : GraphTextData.defaults(),
         );
       default:
         return GraphValueData.float(0);
@@ -196,6 +232,10 @@ class GraphValueData {
         'valueType': 'stringValue',
         'stringValue': stringValue ?? '',
       },
+      GraphValueType.workspaceResource => {
+        'valueType': 'workspaceResource',
+        'resourceIdValue': resourceIdValue ?? '',
+      },
       GraphValueType.boolean => {
         'valueType': 'boolean',
         'boolValue': boolValue ?? false,
@@ -207,6 +247,14 @@ class GraphValueData {
       GraphValueType.colorBezierCurve => {
         'valueType': 'colorBezierCurve',
         'curveValue': (curveValue ?? GraphColorCurveData.identity()).toJson(),
+      },
+      GraphValueType.gradient => {
+        'valueType': 'gradient',
+        'gradientValue': (gradientValue ?? GraphGradientData.identity()).toJson(),
+      },
+      GraphValueType.textBlock => {
+        'valueType': 'textBlock',
+        'textValue': (textValue ?? GraphTextData.defaults()).toJson(),
       },
     };
   }
@@ -235,6 +283,8 @@ class GraphValueData {
         return GraphValueData.float3x3(asFloat3x3());
       case GraphValueType.stringValue:
         return GraphValueData.stringValue(stringValue ?? '');
+      case GraphValueType.workspaceResource:
+        return GraphValueData.workspaceResource(resourceIdValue ?? '');
       case GraphValueType.boolean:
         return GraphValueData.boolean(boolValue ?? false);
       case GraphValueType.enumChoice:
@@ -242,6 +292,14 @@ class GraphValueData {
       case GraphValueType.colorBezierCurve:
         return GraphValueData.colorCurve(
           (curveValue ?? GraphColorCurveData.identity()).clone(),
+        );
+      case GraphValueType.gradient:
+        return GraphValueData.gradient(
+          (gradientValue ?? GraphGradientData.identity()).clone(),
+        );
+      case GraphValueType.textBlock:
+        return GraphValueData.textBlock(
+          (textValue ?? GraphTextData.defaults()).clone(),
         );
     }
   }
@@ -266,12 +324,18 @@ class GraphValueData {
         return asFloat3x3();
       case GraphValueType.stringValue:
         return stringValue ?? '';
+      case GraphValueType.workspaceResource:
+        return resourceIdValue ?? '';
       case GraphValueType.boolean:
         return boolValue ?? false;
       case GraphValueType.enumChoice:
         return enumValue ?? 0;
       case GraphValueType.colorBezierCurve:
         return (curveValue ?? GraphColorCurveData.identity()).clone();
+      case GraphValueType.gradient:
+        return (gradientValue ?? GraphGradientData.identity()).clone();
+      case GraphValueType.textBlock:
+        return (textValue ?? GraphTextData.defaults()).clone();
     }
   }
 
@@ -283,6 +347,13 @@ class GraphValueData {
 
   List<double> asFloat3x3() =>
       List<double>.unmodifiable(_doubleListFromJson(floatValues, 9));
+
+  String asWorkspaceResource() => resourceIdValue ?? '';
+
+  GraphGradientData asGradient() =>
+      (gradientValue ?? GraphGradientData.identity()).clone();
+
+  GraphTextData asTextBlock() => (textValue ?? GraphTextData.defaults()).clone();
 }
 
 Vector2 _vector2FromJson(Object? json) {

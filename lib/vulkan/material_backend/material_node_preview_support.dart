@@ -51,6 +51,18 @@ class MaterialNodePreviewSupportRegistry {
           executionKind: MaterialNodeExecutionKind.fragment,
           packUniforms: _packNoUniforms,
         ),
+        'image_node': const MaterialNodePreviewSupport(
+          executionKind: MaterialNodeExecutionKind.fragment,
+          packUniforms: _packNoUniforms,
+        ),
+        'svg_node': const MaterialNodePreviewSupport(
+          executionKind: MaterialNodeExecutionKind.fragment,
+          packUniforms: _packNoUniforms,
+        ),
+        'text_node': const MaterialNodePreviewSupport(
+          executionKind: MaterialNodeExecutionKind.fragment,
+          packUniforms: _packNoUniforms,
+        ),
         'gamma_node': const MaterialNodePreviewSupport(
           executionKind: MaterialNodeExecutionKind.fragment,
           packUniforms: _packGammaUniforms,

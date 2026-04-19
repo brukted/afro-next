@@ -5,16 +5,23 @@ import 'package:vector_math/vector_math.dart' show Vector2, Vector3, Vector4;
 
 import '../../shared/colors/vector4_color_adapter.dart';
 import '../../shared/widgets/panel_frame.dart';
-import 'color_curve_editor.dart';
 import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import '../material_graph/material_graph_controller.dart';
+import '../workspace/models/workspace_models.dart';
+import '../workspace/workspace_controller.dart';
+import 'color_curve_editor.dart';
 
 class PropertyEditorPanel extends StatelessWidget {
-  const PropertyEditorPanel({super.key, required this.controller});
+  const PropertyEditorPanel({
+    super.key,
+    required this.controller,
+    this.workspaceController,
+  });
 
   final MaterialGraphController controller;
+  final WorkspaceController? workspaceController;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +112,7 @@ class PropertyEditorPanel extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: _EditablePropertyField(
                 controller: controller,
+                workspaceController: workspaceController,
                 nodeId: node.id,
                 property: property,
               ),
@@ -138,11 +146,13 @@ class PropertyEditorPanel extends StatelessWidget {
 class _EditablePropertyField extends StatelessWidget {
   const _EditablePropertyField({
     required this.controller,
+    required this.workspaceController,
     required this.nodeId,
     required this.property,
   });
 
   final MaterialGraphController controller;
+  final WorkspaceController? workspaceController;
   final String nodeId;
   final GraphPropertyBinding property;
 
@@ -315,6 +325,12 @@ class _EditablePropertyField extends StatelessWidget {
             value: GraphValueData.stringValue(nextValue),
           ),
         ),
+        GraphValueType.workspaceResource => _WorkspaceResourcePickerField(
+          property: property,
+          nodeId: nodeId,
+          controller: controller,
+          workspaceController: workspaceController,
+        ),
         GraphValueType.boolean => Row(
           children: [
             Checkbox(
@@ -383,6 +399,22 @@ class _EditablePropertyField extends StatelessWidget {
             nodeId: nodeId,
             propertyId: property.id,
             value: GraphValueData.colorCurve(nextCurve),
+          ),
+        ),
+        GraphValueType.gradient => _GradientField(
+          gradient: property.valueData.asGradient(),
+          onChanged: (nextGradient) => controller.updatePropertyValue(
+            nodeId: nodeId,
+            propertyId: property.id,
+            value: GraphValueData.gradient(nextGradient),
+          ),
+        ),
+        GraphValueType.textBlock => _TextBlockField(
+          value: property.valueData.asTextBlock(),
+          onChanged: (nextText) => controller.updatePropertyValue(
+            nodeId: nodeId,
+            propertyId: property.id,
+            value: GraphValueData.textBlock(nextText),
           ),
         ),
       },
@@ -510,6 +542,282 @@ class _FloatMatrix3Field extends StatelessWidget {
           value: GraphValueData.float3x3(nextValues),
         );
       },
+    );
+  }
+}
+
+class _WorkspaceResourcePickerField extends StatelessWidget {
+  const _WorkspaceResourcePickerField({
+    required this.property,
+    required this.nodeId,
+    required this.controller,
+    required this.workspaceController,
+  });
+
+  final GraphPropertyBinding property;
+  final String nodeId;
+  final MaterialGraphController controller;
+  final WorkspaceController? workspaceController;
+
+  @override
+  Widget build(BuildContext context) {
+    final workspaceController = this.workspaceController;
+    if (workspaceController == null || !workspaceController.isInitialized) {
+      return const Text('Workspace assets are unavailable.');
+    }
+
+    final workspaceKinds = _workspaceKindsForGraphKinds(
+      property.definition.resourceKinds,
+    );
+    final resources = workspaceController.resourcesForKinds(workspaceKinds);
+    final currentValue = property.valueData.asWorkspaceResource();
+    final hasCurrentValue =
+        currentValue.isNotEmpty &&
+        resources.any((resource) => resource.id == currentValue);
+    final dropdownValue = hasCurrentValue ? currentValue : '';
+
+    return DropdownButtonFormField<String>(
+      initialValue: dropdownValue,
+      isDense: true,
+      isExpanded: true,
+      itemHeight: kMinInteractiveDimension,
+      menuMaxHeight: 320,
+      borderRadius: BorderRadius.circular(10),
+      dropdownColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      decoration: _denseInputDecoration(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      items: [
+        const DropdownMenuItem<String>(value: '', child: Text('None')),
+        ...resources.map(
+          (resource) => DropdownMenuItem<String>(
+            value: resource.id,
+            child: Text(resource.name, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: (nextValue) {
+        controller.updatePropertyValue(
+          nodeId: nodeId,
+          propertyId: property.id,
+          value: GraphValueData.workspaceResource(nextValue ?? ''),
+        );
+      },
+    );
+  }
+}
+
+class _GradientField extends StatelessWidget {
+  const _GradientField({required this.gradient, required this.onChanged});
+
+  final GraphGradientData gradient;
+  final ValueChanged<GraphGradientData> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = gradient.normalized();
+    final colors = normalized.stops
+        .map((stop) => Vector4ColorAdapter.toFlutterColor(stop.color))
+        .toList(growable: false);
+    final stops = normalized.stops
+        .map((stop) => stop.position)
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          height: 26,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.3),
+            ),
+            gradient: LinearGradient(colors: colors, stops: stops),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...List.generate(normalized.stops.length, (index) {
+          final stop = normalized.stops[index];
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: index == normalized.stops.length - 1 ? 0 : 8,
+            ),
+            child: Row(
+              children: [
+                InkWell(
+                  onTap: () async {
+                    final picked = await _pickVectorColor(
+                      context,
+                      stop.color,
+                      includeAlpha: true,
+                    );
+                    if (picked == null) {
+                      return;
+                    }
+                    final updated = List<GraphGradientStopData>.from(
+                      normalized.stops,
+                    );
+                    updated[index] = stop.copyWith(color: picked);
+                    onChanged(GraphGradientData(stops: updated).normalized());
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: Vector4ColorAdapter.toFlutterColor(stop.color),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Slider(
+                    value: stop.position,
+                    min: 0,
+                    max: 1,
+                    onChanged: (nextValue) {
+                      final updated = List<GraphGradientStopData>.from(
+                        normalized.stops,
+                      );
+                      updated[index] = stop.copyWith(position: nextValue);
+                      onChanged(GraphGradientData(stops: updated).normalized());
+                    },
+                  ),
+                ),
+                SizedBox(
+                  width: 54,
+                  child: Text(
+                    _formatNumber(stop.position, false),
+                    textAlign: TextAlign.right,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  onPressed: normalized.stops.length <= 2
+                      ? null
+                      : () {
+                          final updated = List<GraphGradientStopData>.from(
+                            normalized.stops,
+                          )..removeAt(index);
+                          onChanged(
+                            GraphGradientData(stops: updated).normalized(),
+                          );
+                        },
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 16,
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          );
+        }),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              final updated = List<GraphGradientStopData>.from(normalized.stops)
+                ..add(
+                  GraphGradientStopData(position: 0.5, color: Vector4.all(1)),
+                );
+              onChanged(GraphGradientData(stops: updated).normalized());
+            },
+            style: TextButton.styleFrom(
+              minimumSize: const Size(0, 30),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Add Stop'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TextBlockField extends StatelessWidget {
+  const _TextBlockField({required this.value, required this.onChanged});
+
+  final GraphTextData value;
+  final ValueChanged<GraphTextData> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Text', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        _StringValueEditor(
+          initialValue: value.text,
+          onSubmitted: (nextValue) =>
+              onChanged(value.copyWith(text: nextValue)),
+        ),
+        const SizedBox(height: 8),
+        Text('Font Family', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        _StringValueEditor(
+          initialValue: value.fontFamily,
+          onSubmitted: (nextValue) =>
+              onChanged(value.copyWith(fontFamily: nextValue)),
+        ),
+        const SizedBox(height: 8),
+        _NumericValueEditor(
+          value: value.fontSize,
+          integer: false,
+          min: 1,
+          max: 256,
+          step: 1,
+          onChanged: (nextValue) =>
+              onChanged(value.copyWith(fontSize: nextValue)),
+        ),
+        const SizedBox(height: 8),
+        Text('Background Color', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        _ColorEditor(
+          color: value.backgroundColor,
+          includeAlpha: true,
+          onColorPicked: (nextColor) =>
+              onChanged(value.copyWith(backgroundColor: nextColor)),
+          onChannelChanged: (index, nextValue) {
+            final current = value.backgroundColor;
+            final next = switch (index) {
+              0 => Vector4(nextValue, current.y, current.z, current.w),
+              1 => Vector4(current.x, nextValue, current.z, current.w),
+              2 => Vector4(current.x, current.y, nextValue, current.w),
+              _ => Vector4(current.x, current.y, current.z, nextValue),
+            };
+            onChanged(value.copyWith(backgroundColor: next));
+          },
+        ),
+        const SizedBox(height: 8),
+        Text('Text Color', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        _ColorEditor(
+          color: value.textColor,
+          includeAlpha: true,
+          onColorPicked: (nextColor) =>
+              onChanged(value.copyWith(textColor: nextColor)),
+          onChannelChanged: (index, nextValue) {
+            final current = value.textColor;
+            final next = switch (index) {
+              0 => Vector4(nextValue, current.y, current.z, current.w),
+              1 => Vector4(current.x, nextValue, current.z, current.w),
+              2 => Vector4(current.x, current.y, nextValue, current.w),
+              _ => Vector4(current.x, current.y, current.z, nextValue),
+            };
+            onChanged(value.copyWith(textColor: next));
+          },
+        ),
+      ],
     );
   }
 }
@@ -771,54 +1079,14 @@ class _ColorEditor extends StatelessWidget {
   }
 
   Future<void> _pickColor(BuildContext context, Vector4 initialValue) async {
-    var draftColor = Vector4ColorAdapter.toFlutterColor(initialValue);
-    final pickedColor = await showDialog<Color>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Pick Color'),
-              contentPadding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-              content: SizedBox(
-                width: 300,
-                child: ColorPicker(
-                  pickerColor: draftColor,
-                  enableAlpha: includeAlpha,
-                  colorPickerWidth: 250,
-                  pickerAreaHeightPercent: 0.72,
-                  portraitOnly: true,
-                  displayThumbColor: true,
-                  labelTypes: const [],
-                  hexInputBar: true,
-                  onColorChanged: (nextColor) {
-                    setState(() {
-                      draftColor = nextColor;
-                    });
-                  },
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(draftColor),
-                  child: const Text('Apply'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final nextColor = await _pickVectorColor(
+      context,
+      initialValue,
+      includeAlpha: includeAlpha,
     );
-
-    if (pickedColor == null) {
+    if (nextColor == null) {
       return;
     }
-
-    final nextColor = Vector4ColorAdapter.fromFlutterColor(pickedColor);
     onColorPicked(
       includeAlpha
           ? nextColor
@@ -1093,6 +1361,71 @@ InputDecoration _denseInputDecoration({
   ),
 }) {
   return InputDecoration(isDense: true, contentPadding: contentPadding);
+}
+
+Set<WorkspaceResourceKind> _workspaceKindsForGraphKinds(
+  List<GraphResourceKind> kinds,
+) {
+  return kinds.map((kind) {
+    return switch (kind) {
+      GraphResourceKind.image => WorkspaceResourceKind.image,
+      GraphResourceKind.svg => WorkspaceResourceKind.svg,
+    };
+  }).toSet();
+}
+
+Future<Vector4?> _pickVectorColor(
+  BuildContext context,
+  Vector4 initialValue, {
+  required bool includeAlpha,
+}) async {
+  var draftColor = Vector4ColorAdapter.toFlutterColor(initialValue);
+  final pickedColor = await showDialog<Color>(
+    context: context,
+    builder: (context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Pick Color'),
+            contentPadding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            content: SizedBox(
+              width: 300,
+              child: ColorPicker(
+                pickerColor: draftColor,
+                enableAlpha: includeAlpha,
+                colorPickerWidth: 250,
+                pickerAreaHeightPercent: 0.72,
+                portraitOnly: true,
+                displayThumbColor: true,
+                labelTypes: const [],
+                hexInputBar: true,
+                onColorChanged: (nextColor) {
+                  setState(() {
+                    draftColor = nextColor;
+                  });
+                },
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(draftColor),
+                child: const Text('Apply'),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+
+  if (pickedColor == null) {
+    return null;
+  }
+  return Vector4ColorAdapter.fromFlutterColor(pickedColor);
 }
 
 ({double min, double max}) _resolveSliderRange({

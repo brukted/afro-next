@@ -368,6 +368,65 @@ class MaterialGraphCatalog {
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(
+        id: 'image_node',
+        label: 'Image',
+        description: 'Loads a workspace image resource into the material graph.',
+        properties: [
+          _resourceDescriptorInput(
+            'resource',
+            'Image Resource',
+            bindingKey: 'MainTex',
+            resourceKinds: const [GraphResourceKind.image],
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.image_search_outlined,
+      accentColor: _color('#6FB7FF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/image-basic.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'svg_node',
+        label: 'SVG',
+        description: 'Loads a workspace SVG resource into the material graph.',
+        properties: [
+          _resourceDescriptorInput(
+            'resource',
+            'SVG Resource',
+            bindingKey: 'MainTex',
+            resourceKinds: const [GraphResourceKind.svg],
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.polyline_outlined,
+      accentColor: _color('#7ED7B5'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/image-basic.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: 'text_node',
+        label: 'Text',
+        description:
+            'Renders styled text to a texture using a system font family name.',
+        properties: [
+          _textDescriptorInput('content', 'Text Content', bindingKey: 'MainTex'),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.text_fields_outlined,
+      accentColor: _color('#F3B574'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(
+        shaderAssetId: 'material/image-basic.frag',
+      ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
         id: 'gamma_node',
         label: 'Gamma',
         description: 'Applies gamma correction to the main texture.',
@@ -745,7 +804,7 @@ class MaterialGraphCatalog {
         description: 'Maps the main texture through a LUT texture and optional mask.',
         properties: [
           _socketColorInput('MainTex', 'Main Texture'),
-          _socketColorInput('ColorLUT', 'Color LUT'),
+          _socketGradientInput('ColorLUT', 'Color LUT'),
           _socketColorInput('Mask', 'Mask'),
           _boolInput('useMask', 'Use Mask', defaultValue: false),
           _boolInput('horizontal', 'Horizontal LUT', defaultValue: true),
@@ -1005,12 +1064,20 @@ class MaterialGraphCatalog {
         return GraphValueData.float3x3(asFloat3x3(definition.defaultValue));
       case GraphValueType.stringValue:
         return GraphValueData.stringValue(definition.defaultValue as String);
+      case GraphValueType.workspaceResource:
+        return GraphValueData.workspaceResource(
+          asResourceId(definition.defaultValue),
+        );
       case GraphValueType.boolean:
         return GraphValueData.boolean(definition.defaultValue as bool);
       case GraphValueType.enumChoice:
         return GraphValueData.enumChoice(definition.defaultValue as int);
+      case GraphValueType.gradient:
+        return GraphValueData.gradient(asGradient(definition.defaultValue));
       case GraphValueType.colorBezierCurve:
         return GraphValueData.colorCurve(asColorCurve(definition.defaultValue));
+      case GraphValueType.textBlock:
+        return GraphValueData.textBlock(asTextData(definition.defaultValue));
     }
   }
 
@@ -1024,6 +1091,8 @@ class MaterialGraphCatalog {
   static vmath.Vector4 _white() => vmath.Vector4(1, 1, 1, 1);
 
   static vmath.Vector4 _black() => vmath.Vector4.zero();
+
+  static GraphGradientData _defaultGradient() => GraphGradientData.identity();
 
   static List<double> _identityMatrix3() => const <double>[
     1,
@@ -1047,6 +1116,19 @@ class MaterialGraphCatalog {
       valueType: GraphValueType.float4,
       valueUnit: GraphValueUnit.color,
       defaultValue: _white(),
+    );
+  }
+
+  static GraphPropertyDefinition _socketGradientInput(String key, String label) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Editable gradient fallback when no LUT texture is connected.',
+      propertyType: GraphPropertyType.input,
+      socket: true,
+      valueType: GraphValueType.gradient,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: _defaultGradient(),
     );
   }
 
@@ -1226,6 +1308,44 @@ class MaterialGraphCatalog {
       valueType: GraphValueType.colorBezierCurve,
       valueUnit: GraphValueUnit.none,
       defaultValue: GraphColorCurveData.identity(),
+      runtimeTextureBindingKey: bindingKey,
+    );
+  }
+
+  static GraphPropertyDefinition _resourceDescriptorInput(
+    String key,
+    String label, {
+    required String bindingKey,
+    required List<GraphResourceKind> resourceKinds,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Select a workspace asset to feed this node.',
+      propertyType: GraphPropertyType.descriptor,
+      socket: false,
+      valueType: GraphValueType.workspaceResource,
+      valueUnit: GraphValueUnit.path,
+      defaultValue: '',
+      runtimeTextureBindingKey: bindingKey,
+      resourceKinds: resourceKinds,
+    );
+  }
+
+  static GraphPropertyDefinition _textDescriptorInput(
+    String key,
+    String label, {
+    required String bindingKey,
+  }) {
+    return GraphPropertyDefinition(
+      key: key,
+      label: label,
+      description: 'Editable text, font, and colors rendered into a texture.',
+      propertyType: GraphPropertyType.descriptor,
+      socket: false,
+      valueType: GraphValueType.textBlock,
+      valueUnit: GraphValueUnit.none,
+      defaultValue: GraphTextData.defaults(),
       runtimeTextureBindingKey: bindingKey,
     );
   }

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:multi_split_view/multi_split_view.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../shared/widgets/panel_frame.dart';
 import '../material_graph/material_graph_controller.dart';
@@ -121,6 +124,40 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       );
     }
 
+    if (resource?.kind == WorkspaceResourceKind.image) {
+      final document = widget.workspaceController.openedImageDocument;
+      if (document != null) {
+        return _AssetPreviewPanel(
+          title: 'Image Resource',
+          subtitle: document.sourceName,
+          child: Image.memory(
+            base64Decode(document.encodedBytesBase64),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (context, error, stackTrace) {
+              return const Center(child: Text('Unable to decode image resource.'));
+            },
+          ),
+        );
+      }
+    }
+
+    if (resource?.kind == WorkspaceResourceKind.svg) {
+      final document = widget.workspaceController.openedSvgDocument;
+      if (document != null) {
+        return _AssetPreviewPanel(
+          title: 'SVG Resource',
+          subtitle: document.sourceName,
+          child: SvgPicture.string(
+            document.svgText,
+            fit: BoxFit.contain,
+            placeholderBuilder: (context) =>
+                const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ),
+        );
+      }
+    }
+
     return const _PlaceholderPanel(
       title: 'Editor',
       subtitle: 'No resource open',
@@ -130,7 +167,39 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
 
   Widget _buildInspector(WorkspaceResourceEntry? resource) {
     if (resource?.kind == WorkspaceResourceKind.materialGraph) {
-      return PropertyEditorPanel(controller: widget.materialGraphController);
+      return PropertyEditorPanel(
+        controller: widget.materialGraphController,
+        workspaceController: widget.workspaceController,
+      );
+    }
+
+    if (resource?.kind == WorkspaceResourceKind.image) {
+      final document = widget.workspaceController.openedImageDocument;
+      if (document != null) {
+        return _AssetInfoPanel(
+          title: 'Image Inspector',
+          subtitle: resource!.name,
+          entries: [
+            ('Source', document.sourceName),
+            ('Bytes', '${base64Decode(document.encodedBytesBase64).length}'),
+            ('Mime', document.mimeType ?? 'Unknown'),
+          ],
+        );
+      }
+    }
+
+    if (resource?.kind == WorkspaceResourceKind.svg) {
+      final document = widget.workspaceController.openedSvgDocument;
+      if (document != null) {
+        return _AssetInfoPanel(
+          title: 'SVG Inspector',
+          subtitle: resource!.name,
+          entries: [
+            ('Source', document.sourceName),
+            ('Characters', '${document.svgText.length}'),
+          ],
+        );
+      }
     }
 
     return const _PlaceholderPanel(
@@ -258,6 +327,75 @@ class _PlaceholderPanel extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AssetPreviewPanel extends StatelessWidget {
+  const _AssetPreviewPanel({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return PanelFrame(
+      title: title,
+      subtitle: subtitle,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.25),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(child: child),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AssetInfoPanel extends StatelessWidget {
+  const _AssetInfoPanel({
+    required this.title,
+    required this.subtitle,
+    required this.entries,
+  });
+
+  final String title;
+  final String subtitle;
+  final List<(String, String)> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    return PanelFrame(
+      title: title,
+      subtitle: subtitle,
+      child: ListView(
+        padding: const EdgeInsets.all(10),
+        children: entries
+            .map(
+              (entry) => ListTile(
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                title: Text(entry.$1),
+                subtitle: Text(entry.$2),
+              ),
+            )
+            .toList(growable: false),
       ),
     );
   }
