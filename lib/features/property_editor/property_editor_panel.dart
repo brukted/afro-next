@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -647,32 +649,37 @@ class _GradientField extends StatelessWidget {
             ),
             child: Row(
               children: [
-                InkWell(
-                  onTap: () async {
-                    final picked = await _pickVectorColor(
-                      context,
-                      stop.color,
-                      includeAlpha: true,
-                    );
-                    if (picked == null) {
-                      return;
-                    }
-                    final updated = List<GraphGradientStopData>.from(
-                      normalized.stops,
-                    );
-                    updated[index] = stop.copyWith(color: picked);
-                    onChanged(GraphGradientData(stops: updated).normalized());
-                  },
-                  borderRadius: BorderRadius.circular(6),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: Vector4ColorAdapter.toFlutterColor(stop.color),
+                Builder(
+                  builder: (buttonContext) {
+                    return InkWell(
+                      onTap: () async {
+                        await _pickVectorColor(
+                          buttonContext,
+                          stop.color,
+                          includeAlpha: true,
+                          onChanged: (picked) {
+                            final updated = List<GraphGradientStopData>.from(
+                              normalized.stops,
+                            );
+                            updated[index] = stop.copyWith(color: picked);
+                            onChanged(
+                              GraphGradientData(stops: updated).normalized(),
+                            );
+                          },
+                        );
+                      },
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                  ),
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: Vector4ColorAdapter.toFlutterColor(stop.color),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1026,18 +1033,22 @@ class _ColorEditor extends StatelessWidget {
       children: [
         Row(
           children: [
-            InkWell(
-              onTap: () => _pickColor(context, swatchColor),
-              borderRadius: BorderRadius.circular(6),
-              child: Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: Vector4ColorAdapter.toFlutterColor(swatchColor),
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(color: Colors.white24),
-                ),
-              ),
+            Builder(
+              builder: (buttonContext) {
+                return InkWell(
+                  onTap: () => _pickColor(buttonContext, swatchColor),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: Vector4ColorAdapter.toFlutterColor(swatchColor),
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                  ),
+                );
+              },
             ),
             const SizedBox(width: 8),
             Text(
@@ -1045,15 +1056,22 @@ class _ColorEditor extends StatelessWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const Spacer(),
-            TextButton(
-              onPressed: () => _pickColor(context, swatchColor),
-              style: TextButton.styleFrom(
-                minimumSize: const Size(0, 28),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-              child: const Text('Pick'),
+            Builder(
+              builder: (buttonContext) {
+                return TextButton(
+                  onPressed: () => _pickColor(buttonContext, swatchColor),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 28),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  child: const Text('Pick'),
+                );
+              },
             ),
           ],
         ),
@@ -1079,18 +1097,17 @@ class _ColorEditor extends StatelessWidget {
   }
 
   Future<void> _pickColor(BuildContext context, Vector4 initialValue) async {
-    final nextColor = await _pickVectorColor(
+    await _pickVectorColor(
       context,
       initialValue,
       includeAlpha: includeAlpha,
-    );
-    if (nextColor == null) {
-      return;
-    }
-    onColorPicked(
-      includeAlpha
-          ? nextColor
-          : Vector4(nextColor.x, nextColor.y, nextColor.z, color.w),
+      onChanged: (nextColor) {
+        onColorPicked(
+          includeAlpha
+              ? nextColor
+              : Vector4(nextColor.x, nextColor.y, nextColor.z, color.w),
+        );
+      },
     );
   }
 }
@@ -1374,58 +1391,263 @@ Set<WorkspaceResourceKind> _workspaceKindsForGraphKinds(
   }).toSet();
 }
 
-Future<Vector4?> _pickVectorColor(
+Future<void> _pickVectorColor(
   BuildContext context,
   Vector4 initialValue, {
   required bool includeAlpha,
+  required ValueChanged<Vector4> onChanged,
 }) async {
-  var draftColor = Vector4ColorAdapter.toFlutterColor(initialValue);
-  final pickedColor = await showDialog<Color>(
-    context: context,
-    builder: (context) {
-      return StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: const Text('Pick Color'),
-            contentPadding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-            content: SizedBox(
-              width: 300,
-              child: ColorPicker(
-                pickerColor: draftColor,
-                enableAlpha: includeAlpha,
-                colorPickerWidth: 250,
-                pickerAreaHeightPercent: 0.72,
-                portraitOnly: true,
-                displayThumbColor: true,
-                labelTypes: const [],
-                hexInputBar: true,
-                onColorChanged: (nextColor) {
-                  setState(() {
-                    draftColor = nextColor;
-                  });
-                },
+  final renderBox = context.findRenderObject() as RenderBox?;
+  final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+  if (renderBox == null || overlay == null) {
+    return;
+  }
+
+  final anchorTopLeft = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
+  final anchorRect = anchorTopLeft & renderBox.size;
+  await Navigator.of(context).push<void>(
+    _ColorPickerPopupRoute(
+      anchorRect: anchorRect,
+      initialColor: Vector4ColorAdapter.toFlutterColor(initialValue),
+      includeAlpha: includeAlpha,
+      onColorChanged: (color) {
+        onChanged(Vector4ColorAdapter.fromFlutterColor(color));
+      },
+    ),
+  );
+}
+
+class _ColorPickerPopupRoute extends PopupRoute<void> {
+  _ColorPickerPopupRoute({
+    required this.anchorRect,
+    required this.initialColor,
+    required this.includeAlpha,
+    required this.onColorChanged,
+  });
+
+  final Rect anchorRect;
+  final Color initialColor;
+  final bool includeAlpha;
+  final ValueChanged<Color> onColorChanged;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Color? get barrierColor => Colors.transparent;
+
+  @override
+  String get barrierLabel => 'Dismiss color picker';
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 140);
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    return _ColorPickerPopover(
+      anchorRect: anchorRect,
+      initialColor: initialColor,
+      includeAlpha: includeAlpha,
+      onColorChanged: onColorChanged,
+      animation: animation,
+    );
+  }
+}
+
+class _ColorPickerPopover extends StatefulWidget {
+  const _ColorPickerPopover({
+    required this.anchorRect,
+    required this.initialColor,
+    required this.includeAlpha,
+    required this.onColorChanged,
+    required this.animation,
+  });
+
+  final Rect anchorRect;
+  final Color initialColor;
+  final bool includeAlpha;
+  final ValueChanged<Color> onColorChanged;
+  final Animation<double> animation;
+
+  @override
+  State<_ColorPickerPopover> createState() => _ColorPickerPopoverState();
+}
+
+class _ColorPickerPopoverState extends State<_ColorPickerPopover> {
+  static const Duration _applyDebounce = Duration(milliseconds: 180);
+
+  late Color _draftColor;
+  late Color _lastAppliedColor;
+  Timer? _applyTimer;
+  bool _revertOnDispose = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _draftColor = widget.initialColor;
+    _lastAppliedColor = widget.initialColor;
+  }
+
+  @override
+  void dispose() {
+    _applyTimer?.cancel();
+    if (_revertOnDispose) {
+      if (_lastAppliedColor != widget.initialColor) {
+        widget.onColorChanged(widget.initialColor);
+      }
+    } else if (_draftColor != _lastAppliedColor) {
+      widget.onColorChanged(_draftColor);
+    }
+    super.dispose();
+  }
+
+  void _scheduleApply(Color nextColor) {
+    setState(() {
+      _draftColor = nextColor;
+    });
+    _applyTimer?.cancel();
+    _applyTimer = Timer(_applyDebounce, () {
+      _lastAppliedColor = _draftColor;
+      widget.onColorChanged(_draftColor);
+    });
+  }
+
+  void _cancelAndClose() {
+    _revertOnDispose = true;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final curvedAnimation = CurvedAnimation(
+      parent: widget.animation,
+      curve: Curves.easeOutCubic,
+    );
+
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => Navigator.of(context).pop(),
+            ),
+          ),
+          CustomSingleChildLayout(
+            delegate: _ColorPickerPopoverLayoutDelegate(
+              anchorRect: widget.anchorRect,
+            ),
+            child: FadeTransition(
+              opacity: curvedAnimation,
+              child: ScaleTransition(
+                scale: Tween<double>(
+                  begin: 0.96,
+                  end: 1,
+                ).animate(curvedAnimation),
+                alignment: Alignment.topLeft,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: Material(
+                    elevation: 18,
+                    color: theme.colorScheme.surfaceContainerHigh,
+                    shadowColor: Colors.black45,
+                    borderRadius: BorderRadius.circular(14),
+                    clipBehavior: Clip.antiAlias,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Pick color', style: theme.textTheme.titleSmall),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: 296,
+                            child: ColorPicker(
+                              pickerColor: _draftColor,
+                              enableAlpha: widget.includeAlpha,
+                              colorPickerWidth: 250,
+                              pickerAreaHeightPercent: 0.72,
+                              portraitOnly: true,
+                              displayThumbColor: true,
+                              labelTypes: const [],
+                              hexInputBar: true,
+                              onColorChanged: _scheduleApply,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: _cancelAndClose,
+                                child: const Text('Cancel'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(draftColor),
-                child: const Text('Apply'),
-              ),
-            ],
-          );
-        },
-      );
-    },
-  );
-
-  if (pickedColor == null) {
-    return null;
+          ),
+        ],
+      ),
+    );
   }
-  return Vector4ColorAdapter.fromFlutterColor(pickedColor);
+}
+
+class _ColorPickerPopoverLayoutDelegate extends SingleChildLayoutDelegate {
+  const _ColorPickerPopoverLayoutDelegate({required this.anchorRect});
+
+  final Rect anchorRect;
+  static const double _screenPadding = 12;
+  static const double _verticalGap = 8;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return BoxConstraints(
+      minWidth: 0,
+      maxWidth: constraints.maxWidth - (_screenPadding * 2),
+      minHeight: 0,
+      maxHeight: constraints.maxHeight - (_screenPadding * 2),
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final availableWidth = size.width - childSize.width - _screenPadding;
+    final desiredLeft = anchorRect.left.clamp(
+      _screenPadding,
+      availableWidth < _screenPadding ? _screenPadding : availableWidth,
+    );
+    final spaceBelow = size.height - anchorRect.bottom - _screenPadding;
+    final showBelow =
+        spaceBelow >= childSize.height + _verticalGap ||
+        anchorRect.top < childSize.height;
+    final desiredTop = showBelow
+        ? anchorRect.bottom + _verticalGap
+        : anchorRect.top - childSize.height - _verticalGap;
+    final maxTop = size.height - childSize.height - _screenPadding;
+    final top = desiredTop.clamp(
+      _screenPadding,
+      maxTop < _screenPadding ? _screenPadding : maxTop,
+    );
+    return Offset(desiredLeft.toDouble(), top.toDouble());
+  }
+
+  @override
+  bool shouldRelayout(covariant _ColorPickerPopoverLayoutDelegate oldDelegate) {
+    return anchorRect != oldDelegate.anchorRect;
+  }
 }
 
 ({double min, double max}) _resolveSliderRange({

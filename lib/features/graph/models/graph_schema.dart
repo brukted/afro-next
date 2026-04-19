@@ -387,6 +387,18 @@ class GraphBezierSpline {
     return GraphBezierSpline(points: updatedPoints).validated();
   }
 
+  GraphBezierSpline removePoint(int index) {
+    if (index <= 0 || index >= points.length - 1) {
+      return validated();
+    }
+
+    final updatedPoints = List<GraphBezierControlPoint>.from(
+      validated().points.map((point) => point.clone()),
+      growable: true,
+    )..removeAt(index);
+    return GraphBezierSpline(points: updatedPoints).validated();
+  }
+
   int? _segmentIndexForX(double x) {
     final normalizedPoints = points;
     for (var index = 0; index < normalizedPoints.length - 1; index += 1) {
@@ -557,27 +569,30 @@ class GraphGradientData {
   }
 
   Map<String, dynamic> toJson() => {
-    'stops': normalized().stops.map((entry) => entry.toJson()).toList(growable: false),
+    'stops': normalized().stops
+        .map((entry) => entry.toJson())
+        .toList(growable: false),
   };
 
   GraphGradientData normalized() {
     if (stops.isEmpty) {
       return GraphGradientData.identity();
     }
-    final normalizedStops = stops
-        .map(
-          (stop) => GraphGradientStopData(
-            position: stop.position.clamp(0, 1).toDouble(),
-            color: Vector4(
-              stop.color.x.clamp(0, 1).toDouble(),
-              stop.color.y.clamp(0, 1).toDouble(),
-              stop.color.z.clamp(0, 1).toDouble(),
-              stop.color.w.clamp(0, 1).toDouble(),
-            ),
-          ),
-        )
-        .toList(growable: true)
-      ..sort((left, right) => left.position.compareTo(right.position));
+    final normalizedStops =
+        stops
+            .map(
+              (stop) => GraphGradientStopData(
+                position: stop.position.clamp(0, 1).toDouble(),
+                color: Vector4(
+                  stop.color.x.clamp(0, 1).toDouble(),
+                  stop.color.y.clamp(0, 1).toDouble(),
+                  stop.color.z.clamp(0, 1).toDouble(),
+                  stop.color.w.clamp(0, 1).toDouble(),
+                ),
+              ),
+            )
+            .toList(growable: true)
+          ..sort((left, right) => left.position.compareTo(right.position));
     if (normalizedStops.length == 1) {
       normalizedStops.add(
         GraphGradientStopData(
@@ -586,7 +601,9 @@ class GraphGradientData {
         ),
       );
     }
-    return GraphGradientData(stops: List<GraphGradientStopData>.unmodifiable(normalizedStops));
+    return GraphGradientData(
+      stops: List<GraphGradientStopData>.unmodifiable(normalizedStops),
+    );
   }
 }
 

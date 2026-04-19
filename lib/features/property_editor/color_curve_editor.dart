@@ -53,8 +53,27 @@ class _ColorBezierCurveEditorState extends State<ColorBezierCurveEditor> {
             onSelectionChanged: (selection) {
               setState(() {
                 _activeChannel = selection.first;
+                _dragTarget = null;
               });
             },
+          ),
+        ),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Tooltip(
+            message: 'Reset ${_channelName(_activeChannel)} curve',
+            child: TextButton.icon(
+              onPressed: _resetActiveChannel,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 28),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+              ),
+              icon: const Icon(Icons.refresh, size: 14),
+              label: const Text('Reset'),
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -66,7 +85,7 @@ class _ColorBezierCurveEditorState extends State<ColorBezierCurveEditor> {
               return GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onDoubleTapDown: (details) =>
-                    _insertPoint(details.localPosition, size),
+                    _handleDoubleTap(details.localPosition, size),
                 onPanStart: (details) =>
                     _beginDrag(details.localPosition, size),
                 onPanUpdate: (details) =>
@@ -97,7 +116,7 @@ class _ColorBezierCurveEditorState extends State<ColorBezierCurveEditor> {
         ),
         const SizedBox(height: 6),
         Text(
-          'Edit one channel at a time. Interior anchors move both tangents.',
+          'Double-click empty space to add a point or double-click an anchor to delete it. Interior anchors move both tangents.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
@@ -106,10 +125,34 @@ class _ColorBezierCurveEditorState extends State<ColorBezierCurveEditor> {
     );
   }
 
+  void _handleDoubleTap(Offset localPosition, Size size) {
+    final spline = widget.curve.splineFor(_activeChannel).validated();
+    final target = _hitTest(localPosition, size, spline);
+    if (target?.kind == _CurveHandleKind.anchor) {
+      _deletePoint(target!.index);
+      return;
+    }
+    _insertPoint(localPosition, size);
+  }
+
   void _insertPoint(Offset localPosition, Size size) {
     final x = _canvasToCurve(localPosition, size).x;
     final nextSpline = widget.curve.splineFor(_activeChannel).splitAt(x);
     _commitSpline(nextSpline);
+  }
+
+  void _deletePoint(int index) {
+    _commitSpline(widget.curve.splineFor(_activeChannel).removePoint(index));
+    setState(() {
+      _dragTarget = null;
+    });
+  }
+
+  void _resetActiveChannel() {
+    _commitSpline(GraphBezierSpline.identity());
+    setState(() {
+      _dragTarget = null;
+    });
   }
 
   void _beginDrag(Offset localPosition, Size size) {
@@ -385,6 +428,16 @@ String _channelLabel(GraphCurveChannel channel) {
     GraphCurveChannel.green => 'G',
     GraphCurveChannel.blue => 'B',
     GraphCurveChannel.alpha => 'A',
+  };
+}
+
+String _channelName(GraphCurveChannel channel) {
+  return switch (channel) {
+    GraphCurveChannel.luminance => 'luminance',
+    GraphCurveChannel.red => 'red',
+    GraphCurveChannel.green => 'green',
+    GraphCurveChannel.blue => 'blue',
+    GraphCurveChannel.alpha => 'alpha',
   };
 }
 
