@@ -606,17 +606,33 @@ class _MathNodePickerMenuEntryState extends State<_MathNodePickerMenuEntry> {
         _iconForDefinition(definition),
         color: _colorForDefinition(context, definition),
       ),
-      title: Text(definition.label),
-      subtitle: definition.description.isEmpty
-          ? null
-          : Text(
-              definition.description,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+      title: Text(
+        definition.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _typeLabel(definition.outputDefinition?.valueType),
+            style: Theme.of(context).textTheme.labelSmall,
+          ),
+          if (definition.description.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            Tooltip(
+              message: definition.description,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.help,
+                child: Icon(
+                  Icons.help_outline,
+                  size: 16,
+                  color: Theme.of(context).hintColor.withValues(alpha: 0.4),
+                ),
+              ),
             ),
-      trailing: Text(
-        _typeLabel(definition.outputDefinition?.valueType),
-        style: Theme.of(context).textTheme.labelSmall,
+          ],
+        ],
       ),
       onTap: () {
         Navigator.of(context).pop('add:${definition.id}');

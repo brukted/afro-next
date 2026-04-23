@@ -767,8 +767,19 @@ class _NodeDefinitionLabel extends StatelessWidget {
 
   final MaterialNodeDefinition definition;
 
+  String? get _tooltipMessage {
+    final description = definition.description.trim();
+    if (description.isEmpty ||
+        description == 'Empty desc' ||
+        description == definition.label) {
+      return null;
+    }
+    return description;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final tooltipMessage = _tooltipMessage;
     return Row(
       children: [
         Icon(
@@ -777,7 +788,23 @@ class _NodeDefinitionLabel extends StatelessWidget {
           color: Vector4ColorAdapter.toFlutterColor(definition.accentColor),
         ),
         const SizedBox(width: 8),
-        Text(definition.label),
+        Expanded(
+          child: Text(definition.label, overflow: TextOverflow.ellipsis),
+        ),
+        if (tooltipMessage != null) ...[
+          const SizedBox(width: 6),
+          Tooltip(
+            message: tooltipMessage,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.help,
+              child: Icon(
+                Icons.help_outline,
+                size: 16,
+                color: Theme.of(context).hintColor.withValues(alpha: 0.4),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
