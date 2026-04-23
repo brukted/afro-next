@@ -8,6 +8,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 
 import '../../shared/widgets/panel_frame.dart';
+import '../math_graph/math_graph_controller.dart';
+import '../math_graph/math_graph_inspector_panel.dart';
+import '../math_graph/math_graph_panel.dart';
 import '../material_graph/material_graph_controller.dart';
 import '../material_graph/material_graph_panel.dart';
 import '../outliner/outliner_panel.dart';
@@ -20,10 +23,12 @@ class WorkspaceScreen extends StatefulWidget {
     super.key,
     required this.workspaceController,
     required this.materialGraphController,
+    required this.mathGraphController,
   });
 
   final WorkspaceController workspaceController;
   final MaterialGraphController materialGraphController;
+  final MathGraphController mathGraphController;
 
   @override
   State<WorkspaceScreen> createState() => _WorkspaceScreenState();
@@ -60,6 +65,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       animation: Listenable.merge([
         widget.workspaceController,
         widget.materialGraphController,
+        widget.mathGraphController,
       ]),
       builder: (context, _) {
         if (!widget.workspaceController.isInitialized) {
@@ -274,12 +280,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
     }
 
     if (resource?.kind == WorkspaceResourceKind.mathGraph) {
-      return const _PlaceholderPanel(
-        title: 'Math Editor',
-        subtitle: 'Math graph resource selected',
-        message:
-            'Math graph documents are part of the workspace model. The dedicated editor is the next pass.',
-      );
+      return MathGraphPanel(controller: widget.mathGraphController);
     }
 
     if (resource?.kind == WorkspaceResourceKind.image) {
@@ -332,6 +333,10 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         controller: widget.materialGraphController,
         workspaceController: widget.workspaceController,
       );
+    }
+
+    if (resource?.kind == WorkspaceResourceKind.mathGraph) {
+      return MathGraphInspectorPanel(controller: widget.mathGraphController);
     }
 
     if (resource?.kind == WorkspaceResourceKind.image) {
@@ -396,10 +401,7 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
       if (widget.materialGraphController.hasGraph) {
         widget.materialGraphController.clearGraph();
       }
-      return;
-    }
-
-    if (!widget.materialGraphController.hasGraph ||
+    } else if (!widget.materialGraphController.hasGraph ||
         widget.materialGraphController.graphId != activeMaterial.graph.id ||
         !identical(
           widget.materialGraphController.graph,
@@ -412,6 +414,23 @@ class _WorkspaceScreenState extends State<WorkspaceScreen> {
         onGraphOutputSizeSettingsChanged: widget
             .workspaceController
             .updateActiveMaterialGraphOutputSizeSettings,
+      );
+    }
+
+    final activeMath = widget.workspaceController.openedMathGraphDocument;
+    if (activeMath == null) {
+      if (widget.mathGraphController.hasGraph) {
+        widget.mathGraphController.clearGraph();
+      }
+      return;
+    }
+
+    if (!widget.mathGraphController.hasGraph ||
+        widget.mathGraphController.graphId != activeMath.graph.id ||
+        !identical(widget.mathGraphController.graph, activeMath.graph)) {
+      widget.mathGraphController.bindGraph(
+        graph: activeMath.graph,
+        onChanged: widget.workspaceController.updateActiveMathGraph,
       );
     }
   }

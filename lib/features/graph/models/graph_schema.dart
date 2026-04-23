@@ -713,7 +713,9 @@ class GraphPropertyDefinition {
   bool get isSocket => socket;
 
   bool get isColor =>
-      valueType == GraphValueType.float4 && valueUnit == GraphValueUnit.color;
+      valueUnit == GraphValueUnit.color &&
+      (valueType == GraphValueType.float3 ||
+          valueType == GraphValueType.float4);
 
   GraphSocketDirection? get socketDirection {
     if (!socket) {

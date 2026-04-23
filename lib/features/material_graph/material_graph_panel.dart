@@ -88,7 +88,7 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
@@ -101,33 +101,51 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
             child: Row(
               children: [
                 Chip(
-                  label: Text(rendererState.backendLabel),
-                  avatar: const Icon(Icons.memory_outlined, size: 13),
+                  label: Text(
+                    rendererState.backendLabel,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  avatar: const Icon(Icons.memory_outlined, size: 12),
+                  labelPadding: EdgeInsets.symmetric(horizontal: 4),
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Expanded(
                   child: Text(
                     pendingConnection == null
                         ? rendererState.summary
                         : 'Tap an input socket to finish the link.',
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: Theme.of(context).textTheme.labelSmall,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 Chip(
-                  label: Text(_resolvedGraphSizeLabel),
-                  avatar: const Icon(Icons.aspect_ratio_outlined, size: 13),
+                  label: Text(
+                    _resolvedGraphSizeLabel,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  avatar: const Icon(Icons.aspect_ratio_outlined, size: 12),
+                  labelPadding: EdgeInsets.symmetric(horizontal: 4),
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   visualDensity: VisualDensity.compact,
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 TextButton(
                   onPressed: () => _showOutputSizeSettingsDialog(context),
                   style: TextButton.styleFrom(
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 0,
+                    ),
+                    textStyle: Theme.of(context).textTheme.labelSmall,
                   ),
                   child: const Text('Output Size'),
                 ),
@@ -135,8 +153,14 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                   TextButton(
                     onPressed: _controller.cancelPendingConnection,
                     style: TextButton.styleFrom(
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 0,
+                      ),
+                      textStyle: Theme.of(context).textTheme.labelSmall,
                     ),
                     child: const Text('Cancel'),
                   ),

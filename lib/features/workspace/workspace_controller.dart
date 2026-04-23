@@ -222,7 +222,7 @@ class WorkspaceController extends ChangeNotifier {
     _workspace = loadedWorkspace;
     _currentFilePath = path;
     _selectedResourceId = _pickInitialResource(loadedWorkspace);
-    _openedResourceId = _selectedResourceId;
+    _openedResourceId = null;
     _isDirty = false;
     await _preferences.rememberRecentFile(path);
     _logger.info('Opened workspace file: $path');
@@ -439,7 +439,6 @@ class WorkspaceController extends ChangeNotifier {
     );
 
     _selectedResourceId = resource.id;
-    _openedResourceId = resource.id;
     _replaceWorkspace(
       workspace.copyWith(
         resources: [...workspace.resources, resource],
@@ -465,7 +464,6 @@ class WorkspaceController extends ChangeNotifier {
     );
 
     _selectedResourceId = resource.id;
-    _openedResourceId = resource.id;
     _replaceWorkspace(
       workspace.copyWith(
         resources: [...workspace.resources, resource],
@@ -650,6 +648,33 @@ class WorkspaceController extends ChangeNotifier {
         .toList(growable: false);
 
     _replaceWorkspace(workspace.copyWith(materialGraphs: materialGraphs));
+  }
+
+  void updateActiveMathGraph(GraphDocument graph) {
+    final resource = openedResource;
+    if (resource == null || resource.documentId == null) {
+      return;
+    }
+
+    final mathGraphs = workspace.mathGraphs
+        .map(
+          (entry) => entry.id == resource.documentId
+              ? entry.copyWith(graph: graph)
+              : entry,
+        )
+        .toList(growable: false);
+
+    final resources = workspace.resources
+        .map(
+          (entry) => entry.id == resource.id
+              ? entry.copyWith(name: graph.name)
+              : entry,
+        )
+        .toList(growable: false);
+
+    _replaceWorkspace(
+      workspace.copyWith(resources: resources, mathGraphs: mathGraphs),
+    );
   }
 
   void _replaceWorkspace(WorkspaceProjectDocument updatedWorkspace) {

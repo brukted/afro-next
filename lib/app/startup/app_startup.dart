@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/math_graph/math_graph_controller.dart';
 import '../../features/material_graph/material_graph_controller.dart';
 import '../../features/workspace/workspace_controller.dart';
 import '../../services/di/service_locator.dart';
@@ -24,6 +25,7 @@ class AppStartup {
 
     final workspaceController = serviceLocator<WorkspaceController>();
     final materialGraphController = serviceLocator<MaterialGraphController>();
+    final mathGraphController = serviceLocator<MathGraphController>();
     await materialGraphController.initialize();
     await workspaceController.initialize();
 
@@ -32,6 +34,7 @@ class AppStartup {
     return AppBootstrap(
       workspaceController: workspaceController,
       materialGraphController: materialGraphController,
+      mathGraphController: mathGraphController,
     );
   }
 }

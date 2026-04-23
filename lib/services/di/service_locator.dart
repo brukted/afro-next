@@ -1,8 +1,11 @@
 import 'package:get_it/get_it.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/math_graph/math_graph_catalog.dart';
+import '../../features/math_graph/math_graph_controller.dart';
 import '../../features/material_graph/material_graph_controller.dart';
 import '../../features/material_graph/material_graph_catalog.dart';
+import '../../features/math_graph/runtime/math_graph_compiler.dart';
 import '../../features/material_graph/runtime/material_graph_compiler.dart';
 import '../../features/material_graph/runtime/material_graph_runtime.dart';
 import '../../features/workspace/workspace_controller.dart';
@@ -39,6 +42,9 @@ Future<void> configureServiceLocator({
     ..registerLazySingleton<MaterialGraphCatalog>(
       () => MaterialGraphCatalog(serviceLocator<IdFactory>()),
     )
+    ..registerLazySingleton<MathGraphCatalog>(
+      () => MathGraphCatalog(serviceLocator<IdFactory>()),
+    )
     ..registerLazySingleton<WorkspaceController>(
       () => WorkspaceController(
         idFactory: serviceLocator<IdFactory>(),
@@ -71,6 +77,9 @@ Future<void> configureServiceLocator({
         catalog: serviceLocator<MaterialGraphCatalog>(),
       ),
     )
+    ..registerLazySingleton<MathGraphCompiler>(
+      () => MathGraphCompiler(catalog: serviceLocator<MathGraphCatalog>()),
+    )
     ..registerLazySingleton<MaterialGraphRuntime>(
       () => MaterialGraphRuntime(
         compiler: serviceLocator<MaterialGraphCompiler>(),
@@ -83,6 +92,14 @@ Future<void> configureServiceLocator({
         idFactory: serviceLocator<IdFactory>(),
         catalog: serviceLocator<MaterialGraphCatalog>(),
         runtime: serviceLocator<MaterialGraphRuntime>(),
+      ),
+      dispose: (controller) => controller.dispose(),
+    )
+    ..registerLazySingleton<MathGraphController>(
+      () => MathGraphController(
+        idFactory: serviceLocator<IdFactory>(),
+        catalog: serviceLocator<MathGraphCatalog>(),
+        compiler: serviceLocator<MathGraphCompiler>(),
       ),
       dispose: (controller) => controller.dispose(),
     )

@@ -15,6 +15,7 @@ import '../material_graph/material_output_size.dart';
 import '../workspace/models/workspace_models.dart';
 import '../workspace/workspace_controller.dart';
 import 'color_curve_editor.dart';
+import 'shared_property_editor_components.dart';
 
 class PropertyEditorPanel extends StatelessWidget {
   const PropertyEditorPanel({
@@ -64,83 +65,91 @@ class PropertyEditorPanel extends StatelessWidget {
     return PanelFrame(
       title: 'Property Editor',
       subtitle: node.name,
-      child: ListView(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(10),
-        children: [
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerHighest.withValues(
-                alpha: 0.12,
-              ),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.22),
-              ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(definition.icon, color: accentColor, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          definition.label,
-                          style: theme.textTheme.titleSmall,
-                        ),
-                        if (definition.description.isNotEmpty) ...[
-                          const SizedBox(height: 1),
-                          Text(
-                            definition.description,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ],
-                    ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.12,
+                ),
+                borderRadius: BorderRadius.circular(propertyEditorCornerRadius),
+                border: Border.all(
+                  color: theme.colorScheme.outlineVariant.withValues(
+                    alpha: 0.22,
                   ),
-                ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Icon(definition.icon, color: accentColor, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            definition.label,
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          if (definition.description.isNotEmpty) ...[
+                            const SizedBox(height: 1),
+                            Text(
+                              definition.description,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 10),
-          ...editableProperties.map(
-            (property) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _EditablePropertyField(
-                controller: controller,
-                workspaceController: workspaceController,
-                nodeId: node.id,
-                property: property,
-              ),
-            ),
-          ),
-          if (outputProperties.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Outputs',
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 6),
-            ...outputProperties.map(
+            const SizedBox(height: 10),
+            ...editableProperties.map(
               (property) => Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: _SocketSummaryTile(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _EditablePropertyField(
                   controller: controller,
+                  workspaceController: workspaceController,
+                  nodeId: node.id,
                   property: property,
                 ),
               ),
             ),
+            if (outputProperties.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Outputs',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ...outputProperties.map(
+                (property) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _SocketSummaryTile(
+                    controller: controller,
+                    property: property,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -162,34 +171,39 @@ class _EditablePropertyField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final definition = property.definition;
-    final theme = Theme.of(context);
 
-    return _PropertyCard(
+    return PropertyEditorCard(
       label: property.label,
       description: definition.description == 'Empty desc'
           ? null
           : definition.description,
       badge: _buildBadge(context),
       child: switch (definition.valueType) {
-        GraphValueType.integer => _NumericValueEditor(
+        GraphValueType.integer => PropertyEditorNumericValueEditor(
           value: (property.value as int).toDouble(),
           integer: true,
           min: definition.min?.toDouble(),
           max: definition.max?.toDouble(),
           step: definition.step ?? 1,
+          footer: definition.valueUnit == GraphValueUnit.power2
+              ? PropertyEditorPowerOfTwoPreview.scalar(
+                  value: (property.value as int).toDouble(),
+                )
+              : null,
           onChanged: (nextValue) => controller.updatePropertyValue(
             nodeId: nodeId,
             propertyId: property.id,
             value: GraphValueData.integer(nextValue.round()),
           ),
         ),
-        GraphValueType.integer2 => _VectorNumberEditor(
+        GraphValueType.integer2 => PropertyEditorVectorNumberEditor(
           values: (property.value as List<int>)
               .map((value) => value.toDouble())
               .toList(),
-          labels: definition.valueUnit == GraphValueUnit.power2
-              ? const ['Width', 'Height']
-              : const ['X', 'Y'],
+          labels: propertyEditorVectorLabels(
+            definition.valueType,
+            definition.valueUnit,
+          ),
           integer: true,
           min: definition.min?.toDouble(),
           max: definition.max?.toDouble(),
@@ -222,11 +236,14 @@ class _EditablePropertyField extends StatelessWidget {
                 )
               : null,
         ),
-        GraphValueType.integer3 => _VectorNumberEditor(
+        GraphValueType.integer3 => PropertyEditorVectorNumberEditor(
           values: (property.value as List<int>)
               .map((value) => value.toDouble())
               .toList(),
-          labels: const ['X', 'Y', 'Z'],
+          labels: propertyEditorVectorLabels(
+            definition.valueType,
+            definition.valueUnit,
+          ),
           integer: true,
           min: definition.min?.toDouble(),
           max: definition.max?.toDouble(),
@@ -239,11 +256,14 @@ class _EditablePropertyField extends StatelessWidget {
             ),
           ),
         ),
-        GraphValueType.integer4 => _VectorNumberEditor(
+        GraphValueType.integer4 => PropertyEditorVectorNumberEditor(
           values: (property.value as List<int>)
               .map((value) => value.toDouble())
               .toList(),
-          labels: const ['X', 'Y', 'Z', 'W'],
+          labels: propertyEditorVectorLabels(
+            definition.valueType,
+            definition.valueUnit,
+          ),
           integer: true,
           min: definition.min?.toDouble(),
           max: definition.max?.toDouble(),
@@ -256,12 +276,17 @@ class _EditablePropertyField extends StatelessWidget {
             ),
           ),
         ),
-        GraphValueType.float => _NumericValueEditor(
+        GraphValueType.float => PropertyEditorNumericValueEditor(
           value: property.value as double,
           integer: false,
           min: definition.min?.toDouble(),
           max: definition.max?.toDouble(),
           step: definition.step ?? 0.01,
+          footer: definition.valueUnit == GraphValueUnit.power2
+              ? PropertyEditorPowerOfTwoPreview.scalar(
+                  value: property.value as double,
+                )
+              : null,
           onChanged: (nextValue) => controller.updatePropertyValue(
             nodeId: nodeId,
             propertyId: property.id,
@@ -273,65 +298,67 @@ class _EditablePropertyField extends StatelessWidget {
           nodeId: nodeId,
           controller: controller,
         ),
-        GraphValueType.float3 when definition.isColor => _ColorEditor(
-          color: (() {
-            final value = property.value as Vector3;
-            return Vector4(value.x, value.y, value.z, 1);
-          })(),
-          includeAlpha: false,
-          onColorPicked: (nextColor) {
-            controller.updatePropertyValue(
-              nodeId: nodeId,
-              propertyId: property.id,
-              value: GraphValueData.float3(
-                Vector3(nextColor.x, nextColor.y, nextColor.z),
-              ),
-            );
-          },
-          onChannelChanged: (index, nextValue) {
-            final current = property.valueData.asFloat3();
-            final next = switch (index) {
-              0 => Vector3(nextValue, current.y, current.z),
-              1 => Vector3(current.x, nextValue, current.z),
-              _ => Vector3(current.x, current.y, nextValue),
-            };
-            controller.updatePropertyValue(
-              nodeId: nodeId,
-              propertyId: property.id,
-              value: GraphValueData.float3(next),
-            );
-          },
-        ),
+        GraphValueType.float3 when propertyEditorUsesColorEditor(definition) =>
+          _ColorEditor(
+            color: (() {
+              final value = property.value as Vector3;
+              return Vector4(value.x, value.y, value.z, 1);
+            })(),
+            includeAlpha: false,
+            onColorPicked: (nextColor) {
+              controller.updatePropertyValue(
+                nodeId: nodeId,
+                propertyId: property.id,
+                value: GraphValueData.float3(
+                  Vector3(nextColor.x, nextColor.y, nextColor.z),
+                ),
+              );
+            },
+            onChannelChanged: (index, nextValue) {
+              final current = property.valueData.asFloat3();
+              final next = switch (index) {
+                0 => Vector3(nextValue, current.y, current.z),
+                1 => Vector3(current.x, nextValue, current.z),
+                _ => Vector3(current.x, current.y, nextValue),
+              };
+              controller.updatePropertyValue(
+                nodeId: nodeId,
+                propertyId: property.id,
+                value: GraphValueData.float3(next),
+              );
+            },
+          ),
         GraphValueType.float3 => _FloatVectorField(
           property: property,
           nodeId: nodeId,
           controller: controller,
         ),
-        GraphValueType.float4 when definition.isColor => _ColorEditor(
-          color: property.valueData.asFloat4(),
-          includeAlpha: true,
-          onColorPicked: (nextColor) {
-            controller.updatePropertyValue(
-              nodeId: nodeId,
-              propertyId: property.id,
-              value: GraphValueData.float4(nextColor),
-            );
-          },
-          onChannelChanged: (index, nextValue) {
-            final current = property.valueData.asFloat4();
-            final next = switch (index) {
-              0 => Vector4(nextValue, current.y, current.z, current.w),
-              1 => Vector4(current.x, nextValue, current.z, current.w),
-              2 => Vector4(current.x, current.y, nextValue, current.w),
-              _ => Vector4(current.x, current.y, current.z, nextValue),
-            };
-            controller.updatePropertyValue(
-              nodeId: nodeId,
-              propertyId: property.id,
-              value: GraphValueData.float4(next),
-            );
-          },
-        ),
+        GraphValueType.float4 when propertyEditorUsesColorEditor(definition) =>
+          _ColorEditor(
+            color: property.valueData.asFloat4(),
+            includeAlpha: true,
+            onColorPicked: (nextColor) {
+              controller.updatePropertyValue(
+                nodeId: nodeId,
+                propertyId: property.id,
+                value: GraphValueData.float4(nextColor),
+              );
+            },
+            onChannelChanged: (index, nextValue) {
+              final current = property.valueData.asFloat4();
+              final next = switch (index) {
+                0 => Vector4(nextValue, current.y, current.z, current.w),
+                1 => Vector4(current.x, nextValue, current.z, current.w),
+                2 => Vector4(current.x, current.y, nextValue, current.w),
+                _ => Vector4(current.x, current.y, current.z, nextValue),
+              };
+              controller.updatePropertyValue(
+                nodeId: nodeId,
+                propertyId: property.id,
+                value: GraphValueData.float4(next),
+              );
+            },
+          ),
         GraphValueType.float4 => _FloatVectorField(
           property: property,
           nodeId: nodeId,
@@ -342,7 +369,7 @@ class _EditablePropertyField extends StatelessWidget {
           nodeId: nodeId,
           controller: controller,
         ),
-        GraphValueType.stringValue => _StringValueEditor(
+        GraphValueType.stringValue => PropertyEditorStringValueEditor(
           initialValue: property.value as String,
           onSubmitted: (nextValue) => controller.updatePropertyValue(
             nodeId: nodeId,
@@ -356,61 +383,18 @@ class _EditablePropertyField extends StatelessWidget {
           controller: controller,
           workspaceController: workspaceController,
         ),
-        GraphValueType.boolean => Row(
-          children: [
-            Checkbox(
-              value: property.value as bool,
-              visualDensity: VisualDensity.compact,
-              onChanged: (nextValue) {
-                if (nextValue == null) {
-                  return;
-                }
-                controller.updatePropertyValue(
-                  nodeId: nodeId,
-                  propertyId: property.id,
-                  value: GraphValueData.boolean(nextValue),
-                );
-              },
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                (property.value as bool) ? 'Enabled' : 'Disabled',
-                style: theme.textTheme.bodyMedium,
-              ),
-            ),
-          ],
-        ),
-        GraphValueType.enumChoice => DropdownButtonFormField<int>(
-          initialValue: property.value as int,
-          isDense: true,
-          isExpanded: true,
-          itemHeight: kMinInteractiveDimension,
-          menuMaxHeight: 320,
-          borderRadius: BorderRadius.circular(10),
-          dropdownColor: theme.colorScheme.surfaceContainerLow,
-          decoration: _denseInputDecoration(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 10,
-              vertical: 6,
-            ),
+        GraphValueType.boolean => PropertyEditorBooleanValueEditor(
+          value: property.value as bool,
+          onChanged: (nextValue) => controller.updatePropertyValue(
+            nodeId: nodeId,
+            propertyId: property.id,
+            value: GraphValueData.boolean(nextValue),
           ),
-          items: definition.enumOptions
-              .map(
-                (option) => DropdownMenuItem<int>(
-                  value: option.value,
-                  child: Text(
-                    option.label,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ),
-              )
-              .toList(growable: false),
+        ),
+        GraphValueType.enumChoice => PropertyEditorEnumChoiceEditor(
+          currentValue: property.value as int,
+          options: definition.enumOptions,
           onChanged: (nextValue) {
-            if (nextValue == null) {
-              return;
-            }
             if (controller.updateOutputSizeProperty(
               nodeId: nodeId,
               propertyKey: property.definition.key,
@@ -487,12 +471,10 @@ class _FloatVectorField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final definition = property.definition;
-    final labels = switch (definition.valueType) {
-      GraphValueType.float2 => const ['X', 'Y'],
-      GraphValueType.float3 => const ['X', 'Y', 'Z'],
-      GraphValueType.float4 => const ['X', 'Y', 'Z', 'W'],
-      _ => const <String>[],
-    };
+    final labels = propertyEditorVectorLabels(
+      definition.valueType,
+      definition.valueUnit,
+    );
     final values = switch (definition.valueType) {
       GraphValueType.float2 => _vector2ToList(property.value as Vector2),
       GraphValueType.float3 => _vector3ToList(property.value as Vector3),
@@ -500,13 +482,19 @@ class _FloatVectorField extends StatelessWidget {
       _ => const <double>[],
     };
 
-    return _VectorNumberEditor(
+    return PropertyEditorVectorNumberEditor(
       values: values,
       labels: labels,
       integer: false,
       min: definition.min?.toDouble(),
       max: definition.max?.toDouble(),
       step: definition.step ?? 0.01,
+      footer: definition.valueUnit == GraphValueUnit.power2
+          ? PropertyEditorPowerOfTwoPreview.vector(
+              values: values,
+              labels: labels,
+            )
+          : null,
       onChanged: (nextValues) {
         final nextValue = switch (definition.valueType) {
           GraphValueType.float2 => GraphValueData.float2(
@@ -560,7 +548,7 @@ class _FloatMatrix3Field extends StatelessWidget {
       'M22',
     ];
 
-    return _VectorNumberEditor(
+    return PropertyEditorVectorNumberEditor(
       values: values,
       labels: labels,
       integer: false,
@@ -614,9 +602,9 @@ class _WorkspaceResourcePickerField extends StatelessWidget {
       isExpanded: true,
       itemHeight: kMinInteractiveDimension,
       menuMaxHeight: 320,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(propertyEditorCornerRadius),
       dropdownColor: Theme.of(context).colorScheme.surfaceContainerLow,
-      decoration: _denseInputDecoration(
+      decoration: propertyEditorDenseInputDecoration(
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       ),
       items: [
@@ -793,7 +781,7 @@ class _TextBlockField extends StatelessWidget {
       children: [
         Text('Text', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 4),
-        _StringValueEditor(
+        PropertyEditorStringValueEditor(
           initialValue: value.text,
           onSubmitted: (nextValue) =>
               onChanged(value.copyWith(text: nextValue)),
@@ -801,13 +789,13 @@ class _TextBlockField extends StatelessWidget {
         const SizedBox(height: 8),
         Text('Font Family', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 4),
-        _StringValueEditor(
+        PropertyEditorStringValueEditor(
           initialValue: value.fontFamily,
           onSubmitted: (nextValue) =>
               onChanged(value.copyWith(fontFamily: nextValue)),
         ),
         const SizedBox(height: 8),
-        _NumericValueEditor(
+        PropertyEditorNumericValueEditor(
           value: value.fontSize,
           integer: false,
           min: 1,
@@ -859,68 +847,6 @@ class _TextBlockField extends StatelessWidget {
   }
 }
 
-class _PropertyCard extends StatelessWidget {
-  const _PropertyCard({
-    required this.label,
-    required this.child,
-    this.description,
-    this.badge,
-  });
-
-  final String label;
-  final String? description;
-  final Widget child;
-  final Widget? badge;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.12,
-        ),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.22),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(9, 8, 9, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (badge != null) ...[const SizedBox(width: 8), badge!],
-              ],
-            ),
-            if (description != null && description!.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                description!,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            const SizedBox(height: 6),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 enum BadgeTone { subtle, active }
 
 class _MetaBadge extends StatelessWidget {
@@ -956,88 +882,6 @@ class _MetaBadge extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _NumericValueEditor extends StatelessWidget {
-  const _NumericValueEditor({
-    required this.value,
-    required this.integer,
-    required this.onChanged,
-    this.min,
-    this.max,
-    required this.step,
-  });
-
-  final double value;
-  final bool integer;
-  final double? min;
-  final double? max;
-  final double step;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _NumberField(
-      value: value,
-      integer: integer,
-      min: min,
-      max: max,
-      step: step,
-      onChanged: onChanged,
-    );
-  }
-}
-
-class _VectorNumberEditor extends StatelessWidget {
-  const _VectorNumberEditor({
-    required this.values,
-    required this.labels,
-    required this.integer,
-    required this.step,
-    required this.onChanged,
-    this.min,
-    this.max,
-    this.footer,
-  });
-
-  final List<double> values;
-  final List<String> labels;
-  final bool integer;
-  final double? min;
-  final double? max;
-  final double step;
-  final ValueChanged<List<double>> onChanged;
-  final Widget? footer;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ...List.generate(values.length, (index) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: index == values.length - 1 ? 0 : 6,
-            ),
-            child: _NumberField(
-              label: labels[index],
-              value: values[index],
-              integer: integer,
-              min: min,
-              max: max,
-              step: step,
-              onChanged: (nextValue) {
-                final updated = List<double>.from(values);
-                updated[index] = nextValue;
-                onChanged(updated);
-              },
-            ),
-          );
-        }),
-        if (footer != null) ...[const SizedBox(height: 6), footer!],
-      ],
     );
   }
 }
@@ -1274,7 +1118,7 @@ class _NumberFieldState extends State<_NumberField> {
           child: TextFormField(
             controller: _controller,
             focusNode: _focusNode,
-            decoration: _denseInputDecoration(),
+            decoration: propertyEditorDenseInputDecoration(),
             textAlign: TextAlign.right,
             keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
@@ -1313,66 +1157,6 @@ class _NumberFieldState extends State<_NumberField> {
   }
 }
 
-class _StringValueEditor extends StatefulWidget {
-  const _StringValueEditor({
-    required this.initialValue,
-    required this.onSubmitted,
-  });
-
-  final String initialValue;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  State<_StringValueEditor> createState() => _StringValueEditorState();
-}
-
-class _StringValueEditorState extends State<_StringValueEditor> {
-  late final TextEditingController _controller;
-  late final FocusNode _focusNode;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialValue);
-    _focusNode = FocusNode();
-  }
-
-  @override
-  void didUpdateWidget(covariant _StringValueEditor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (_focusNode.hasFocus) {
-      return;
-    }
-    if (_controller.text != widget.initialValue) {
-      _controller.text = widget.initialValue;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      controller: _controller,
-      focusNode: _focusNode,
-      decoration: _denseInputDecoration(),
-      onTapOutside: (_) => _submit(),
-      onFieldSubmitted: (_) => _submit(),
-    );
-  }
-
-  void _submit() {
-    if (_controller.text != widget.initialValue) {
-      widget.onSubmitted(_controller.text);
-    }
-  }
-}
-
 class _CurveSummaryField extends StatelessWidget {
   const _CurveSummaryField({required this.curve, required this.onChanged});
 
@@ -1404,7 +1188,7 @@ class _SocketSummaryTile extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerHighest.withValues(
           alpha: 0.12,
         ),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(propertyEditorCornerRadius),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.22),
         ),
@@ -1433,15 +1217,6 @@ class _SocketSummaryTile extends StatelessWidget {
       ),
     );
   }
-}
-
-InputDecoration _denseInputDecoration({
-  EdgeInsetsGeometry contentPadding = const EdgeInsets.symmetric(
-    horizontal: 8,
-    vertical: 8,
-  ),
-}) {
-  return InputDecoration(isDense: true, contentPadding: contentPadding);
 }
 
 Set<WorkspaceResourceKind> _workspaceKindsForGraphKinds(

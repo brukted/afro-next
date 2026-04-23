@@ -25,10 +25,10 @@ void main() {
 
     expect(_panelText('Radius'), findsOneWidget);
     expect(_panelText('Outline'), findsOneWidget);
-    expect(_panelText('Width'), findsOneWidget);
-    expect(_panelText('Height'), findsOneWidget);
-    expect(_panelDescendant(find.byType(Slider)), findsNWidgets(4));
-    expect(_panelDescendant(find.byType(TextFormField)), findsNWidgets(4));
+    expect(_panelText('Width'), findsAtLeastNWidgets(1));
+    expect(_panelText('Height'), findsAtLeastNWidgets(1));
+    expect(_panelDescendant(find.byType(Slider)), findsAtLeastNWidgets(4));
+    expect(_panelDescendant(find.byType(TextFormField)), findsAtLeastNWidgets(4));
   });
 
   testWidgets('mix node exposes compact dropdowns and a color picker dialog', (

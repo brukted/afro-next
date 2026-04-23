@@ -22,7 +22,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
           side: BorderSide(
             color: scheme.outlineVariant.withValues(alpha: 0.35),
           ),
@@ -38,13 +38,14 @@ class AppTheme {
         backgroundColor: scheme.surfaceContainerHighest,
         selectedColor: scheme.primaryContainer,
         side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: const Color(0xFF151823),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(7),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
       ),
@@ -52,7 +53,7 @@ class AppTheme {
         color: const Color(0xFF181B24),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           side: BorderSide(
             color: scheme.outlineVariant.withValues(alpha: 0.28),
           ),
@@ -63,7 +64,8 @@ class AppTheme {
         thumbColor: scheme.primary,
         inactiveTrackColor: scheme.surfaceContainerHighest,
       ),
-      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: const VisualDensity(horizontal: -2, vertical: -2),
     );
   }
 }

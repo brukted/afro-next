@@ -21,6 +21,7 @@ class EyecandyApp extends StatelessWidget {
       home: WorkspaceScreen(
         workspaceController: bootstrap.workspaceController,
         materialGraphController: bootstrap.materialGraphController,
+        mathGraphController: bootstrap.mathGraphController,
       ),
     );
   }
