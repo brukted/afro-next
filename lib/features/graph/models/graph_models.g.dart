@@ -27,9 +27,7 @@ GraphNodeDocument _$GraphNodeDocumentFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       definitionId: json['definitionId'] as String,
       name: json['name'] as String,
-      position: const Vector2JsonConverter().fromJson(
-        json['position'] as List<double>,
-      ),
+      position: const Vector2JsonConverter().fromJson(json['position']),
       properties: (json['properties'] as List<dynamic>)
           .map((e) => GraphNodePropertyData.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -65,9 +63,7 @@ Map<String, dynamic> _$GraphLinkDocumentToJson(GraphLinkDocument instance) =>
 GraphItemDocument _$GraphItemDocumentFromJson(Map<String, dynamic> json) =>
     GraphItemDocument(
       id: json['id'] as String,
-      position: const Vector2JsonConverter().fromJson(
-        json['position'] as List<double>,
-      ),
+      position: const Vector2JsonConverter().fromJson(json['position']),
       isVisible: json['isVisible'] as bool? ?? true,
     );
 

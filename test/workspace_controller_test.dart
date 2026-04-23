@@ -177,6 +177,87 @@ void main() {
       expect(controller.openedResource, isNull);
     },
   );
+
+  test('opens workspace files with decoded graph position arrays', () async {
+    final tempDir = await Directory.systemTemp.createTemp('eyecandy-workspace');
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final workspacePath = '${tempDir.path}/positions.eye.json';
+    await File(workspacePath).writeAsString('''
+{
+  "id": "workspace-id",
+  "name": "Position Test",
+  "rootFolderId": "root-folder",
+  "resources": [
+    {
+      "id": "root-folder",
+      "name": "Root",
+      "kind": "folder",
+      "parentId": null,
+      "documentId": null
+    },
+    {
+      "id": "math-resource",
+      "name": "Math Graph",
+      "kind": "mathGraph",
+      "parentId": "root-folder",
+      "documentId": "math-document"
+    }
+  ],
+  "materialGraphs": [],
+  "mathGraphs": [
+    {
+      "id": "math-document",
+      "graph": {
+        "id": "graph-id",
+        "name": "Math Graph",
+        "nodes": [
+          {
+            "id": "node-id",
+            "definitionId": "output_integer3_node",
+            "name": "Output Integer3",
+            "position": [1032.7109375, 396.8671875],
+            "properties": [
+              {
+                "id": "property-id",
+                "definitionKey": "value",
+                "value": {
+                  "valueType": "integer3",
+                  "integerValues": [0, 0, 0]
+                }
+              }
+            ]
+          }
+        ],
+        "links": [],
+        "graphItems": [
+          {
+            "id": "item-id",
+            "position": [32, 64],
+            "isVisible": true
+          }
+        ]
+      }
+    }
+  ],
+  "images": [],
+  "svgs": []
+}
+''');
+
+    final controller = WorkspaceController.preview()..initializeForPreview();
+
+    await controller.openWorkspaceFromPath(workspacePath);
+
+    final graph = controller.workspace.mathGraphs.single.graph;
+    final node = graph.nodes.single;
+    final item = graph.graphItems.single;
+
+    expect(node.position.x, closeTo(1032.7109375, 0.000001));
+    expect(node.position.y, closeTo(396.8671875, 0.000001));
+    expect(item.position.x, 32);
+    expect(item.position.y, 64);
+  });
 }
 
 Future<List<int>> _createPngBytes() async {

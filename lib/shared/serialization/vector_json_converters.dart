@@ -1,60 +1,63 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:vector_math/vector_math.dart';
 
-class Vector2JsonConverter extends JsonConverter<Vector2, List<double>> {
+class Vector2JsonConverter extends JsonConverter<Vector2, Object?> {
   const Vector2JsonConverter();
 
   @override
-  Vector2 fromJson(List<double> json) {
+  Vector2 fromJson(Object? json) {
     return Vector2(
-      json.elementAtOrNull(0) ?? 0,
-      json.elementAtOrNull(1) ?? 0,
+      _elementAtOrNull(json, 0) ?? 0,
+      _elementAtOrNull(json, 1) ?? 0,
     );
   }
 
   @override
-  List<double> toJson(Vector2 object) => [object.x, object.y];
+  Object? toJson(Vector2 object) => [object.x, object.y];
 }
 
-class Vector4JsonConverter extends JsonConverter<Vector4, List<double>> {
+class Vector4JsonConverter extends JsonConverter<Vector4, Object?> {
   const Vector4JsonConverter();
 
   @override
-  Vector4 fromJson(List<double> json) {
+  Vector4 fromJson(Object? json) {
     return Vector4(
-      json.elementAtOrNull(0) ?? 0,
-      json.elementAtOrNull(1) ?? 0,
-      json.elementAtOrNull(2) ?? 0,
-      json.elementAtOrNull(3) ?? 1,
+      _elementAtOrNull(json, 0) ?? 0,
+      _elementAtOrNull(json, 1) ?? 0,
+      _elementAtOrNull(json, 2) ?? 0,
+      _elementAtOrNull(json, 3) ?? 1,
     );
   }
 
   @override
-  List<double> toJson(Vector4 object) => [object.x, object.y, object.z, object.w];
+  Object? toJson(Vector4 object) => [object.x, object.y, object.z, object.w];
 }
 
-class Vector3JsonConverter extends JsonConverter<Vector3, List<double>> {
+class Vector3JsonConverter extends JsonConverter<Vector3, Object?> {
   const Vector3JsonConverter();
 
   @override
-  Vector3 fromJson(List<double> json) {
+  Vector3 fromJson(Object? json) {
     return Vector3(
-      json.elementAtOrNull(0) ?? 0,
-      json.elementAtOrNull(1) ?? 0,
-      json.elementAtOrNull(2) ?? 0,
+      _elementAtOrNull(json, 0) ?? 0,
+      _elementAtOrNull(json, 1) ?? 0,
+      _elementAtOrNull(json, 2) ?? 0,
     );
   }
 
   @override
-  List<double> toJson(Vector3 object) => [object.x, object.y, object.z];
+  Object? toJson(Vector3 object) => [object.x, object.y, object.z];
 }
 
-extension on List<num> {
-  double? elementAtOrNull(int index) {
-    if (index < 0 || index >= length) {
-      return null;
-    }
-
-    return this[index].toDouble();
+double? _elementAtOrNull(Object? json, int index) {
+  if (json is! List || index < 0 || index >= json.length) {
+    return null;
   }
+
+  final value = json[index];
+  if (value is! num) {
+    return null;
+  }
+
+  return value.toDouble();
 }
