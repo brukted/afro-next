@@ -1208,9 +1208,9 @@ class MaterialGraphCatalog {
       return properties;
     }
     return <GraphPropertyDefinition>[
-      ...properties.take(outputIndex),
       _outputSizeModeProperty(),
       _outputSizeValueProperty(),
+      ...properties.take(outputIndex),
       ...properties.skip(outputIndex),
     ];
   }

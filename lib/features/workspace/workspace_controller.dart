@@ -214,6 +214,10 @@ class WorkspaceController extends ChangeNotifier {
       return;
     }
 
+    await openWorkspaceFromPath(path);
+  }
+
+  Future<void> openWorkspaceFromPath(String path) async {
     final loadedWorkspace = await _fileStore.load(path);
     _workspace = loadedWorkspace;
     _currentFilePath = path;
@@ -222,6 +226,15 @@ class WorkspaceController extends ChangeNotifier {
     _isDirty = false;
     await _preferences.rememberRecentFile(path);
     _logger.info('Opened workspace file: $path');
+    notifyListeners();
+  }
+
+  void newUntitledWorkspace() {
+    _workspace = _createInitialWorkspace();
+    _currentFilePath = null;
+    _selectedResourceId = _pickInitialResource(workspace);
+    _openedResourceId = _selectedResourceId;
+    _isDirty = false;
     notifyListeners();
   }
 
