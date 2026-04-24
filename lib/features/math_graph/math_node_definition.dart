@@ -112,4 +112,6 @@ class MathNodeDefinition {
   }
 
   bool get isGraphOutput => compileMetadata.kind == MathNodeKind.graphOutput;
+
+  bool get isInputParameter => compileMetadata.kind == MathNodeKind.inputParameter;
 }

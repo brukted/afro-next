@@ -5,6 +5,7 @@ import '../../graph/models/graph_schema.dart';
 import '../material_graph_catalog.dart';
 import '../material_node_definition.dart';
 import '../material_output_size.dart';
+import '../material_socket_compatibility.dart';
 import 'material_execution_ir.dart';
 
 class MaterialGraphCompiler {
@@ -78,6 +79,7 @@ class MaterialGraphCompiler {
         .map((nodeId) {
           final pass = _compileNodePass(
             node: nodesById[nodeId]!,
+            nodesById: nodesById,
             linkByInputPropertyId: linkByInputPropertyId,
             graphOutputSize: resolvedGraphOutputSize,
             resolvedOutputSizesByNodeId: resolvedOutputSizesByNodeId,
@@ -102,6 +104,7 @@ class MaterialGraphCompiler {
 
   MaterialCompiledNodePass _compileNodePass({
     required GraphNodeDocument node,
+    required Map<String, GraphNodeDocument> nodesById,
     required Map<String, GraphLinkDocument> linkByInputPropertyId,
     required MaterialResolvedOutputSize graphOutputSize,
     required Map<String, MaterialResolvedOutputSize>
@@ -121,6 +124,40 @@ class MaterialGraphCompiler {
       resolvedOutputSizesByNodeId: resolvedOutputSizesByNodeId,
     );
 
+    if (definition.isGraphInput) {
+      final outputDefinition = definition.properties.firstWhere(
+        (property) => property.propertyType == GraphPropertyType.output,
+      );
+      final outputProperty = node.propertyByDefinitionKey(
+        outputDefinition.key,
+      )!;
+      final graphInputTexture = _compileGraphInputTextureInput(
+        node: node,
+        definition: definition,
+      );
+      if (graphInputTexture != null) {
+        textureInputs.add(graphInputTexture);
+      }
+      return MaterialCompiledNodePass(
+        nodeId: node.id,
+        nodeName: node.name,
+        definitionId: definition.id,
+        executionKind: definition.runtime.executionKind,
+        shaderAssetId: definition.runtime.shaderAssetId,
+        textureInputs: textureInputs,
+        parameterBindings: parameterBindings,
+        output: MaterialCompiledOutputBinding(
+          propertyId: outputProperty.id,
+          propertyKey: outputProperty.definitionKey,
+          bindingKey: outputDefinition.key,
+          valueType: outputDefinition.valueType,
+          kind: MaterialPassOutputKind.preview,
+        ),
+        upstreamNodeIds: const <String>[],
+        resolvedOutputSize: resolvedOutputSize,
+      );
+    }
+
     for (final propertyDefinition in definition.properties) {
       final property = node.propertyByDefinitionKey(propertyDefinition.key);
       if (property == null) {
@@ -136,7 +173,12 @@ class MaterialGraphCompiler {
       final bindingKey = propertyDefinition.key;
       final isTextureInput =
           propertyDefinition.socket &&
-          propertyDefinition.propertyType == GraphPropertyType.input;
+          propertyDefinition.propertyType == GraphPropertyType.input &&
+          propertyDefinition.socketTransport == GraphSocketTransport.texture;
+      final isValueInput =
+          propertyDefinition.socket &&
+          propertyDefinition.propertyType == GraphPropertyType.input &&
+          propertyDefinition.socketTransport == GraphSocketTransport.value;
       final generatedTextureBindingKey =
           propertyDefinition.runtimeTextureBindingKey;
       if (isTextureInput || generatedTextureBindingKey != null) {
@@ -153,6 +195,28 @@ class MaterialGraphCompiler {
             fallbackValue: property.value.deepCopy(),
             sourceNodeId: link?.fromNodeId,
             sourcePropertyId: link?.fromPropertyId,
+          ),
+        );
+        continue;
+      }
+
+      if (isValueInput) {
+        final link = linkByInputPropertyId[property.id];
+        if (link != null) {
+          upstreamNodeIds.add(link.fromNodeId);
+        }
+        parameterBindings.add(
+          MaterialCompiledParameterBinding(
+            propertyId: property.id,
+            propertyKey: property.definitionKey,
+            bindingKey: bindingKey,
+            valueType: propertyDefinition.valueType,
+            value: _resolveValueInputBinding(
+              property: property,
+              propertyDefinition: propertyDefinition,
+              link: link,
+              nodesById: nodesById,
+            ),
           ),
         );
         continue;
@@ -200,6 +264,77 @@ class MaterialGraphCompiler {
       upstreamNodeIds: upstreamNodeIds.toList(growable: false),
       resolvedOutputSize: resolvedOutputSize,
     );
+  }
+
+  MaterialCompiledTextureInput? _compileGraphInputTextureInput({
+    required GraphNodeDocument node,
+    required MaterialNodeDefinition definition,
+  }) {
+    final valuePropertyKey = definition.inputValuePropertyKey;
+    if (valuePropertyKey == null) {
+      return null;
+    }
+    final valueProperty = node.propertyByDefinitionKey(valuePropertyKey);
+    if (valueProperty == null) {
+      return null;
+    }
+    final resourcePropertyKey = definition.inputResourcePropertyKey;
+    final resourceProperty = resourcePropertyKey == null
+        ? null
+        : node.propertyByDefinitionKey(resourcePropertyKey);
+    final fallbackValue =
+        resourceProperty != null &&
+            (resourceProperty.value.resourceIdValue?.isNotEmpty ?? false)
+        ? resourceProperty.value.deepCopy()
+        : valueProperty.value.deepCopy();
+    return MaterialCompiledTextureInput(
+      propertyId: valueProperty.id,
+      propertyKey: valueProperty.definitionKey,
+      bindingKey: 'MainTex',
+      valueType: fallbackValue.valueType,
+      fallbackValue: fallbackValue,
+    );
+  }
+
+  GraphValueData _resolveValueInputBinding({
+    required GraphNodePropertyData property,
+    required GraphPropertyDefinition propertyDefinition,
+    required GraphLinkDocument? link,
+    required Map<String, GraphNodeDocument> nodesById,
+  }) {
+    if (link == null) {
+      return property.value.deepCopy();
+    }
+    final sourceNode = nodesById[link.fromNodeId];
+    if (sourceNode == null) {
+      return property.value.deepCopy();
+    }
+    final sourceDefinition = _catalog.definitionById(sourceNode.definitionId);
+    final sourceOutputProperty = sourceNode.propertyById(link.fromPropertyId);
+    if (sourceOutputProperty == null) {
+      return property.value.deepCopy();
+    }
+    final sourceOutputDefinition = sourceDefinition.propertyDefinition(
+      sourceOutputProperty.definitionKey,
+    );
+    if (!materialSocketDefinitionsCompatible(
+      fromDefinition: sourceOutputDefinition,
+      toDefinition: propertyDefinition,
+    )) {
+      return property.value.deepCopy();
+    }
+    final sourceValuePropertyKey = sourceDefinition.inputValuePropertyKey;
+    if (!sourceDefinition.isGraphInput || sourceValuePropertyKey == null) {
+      return property.value.deepCopy();
+    }
+    final sourceValue = sourceNode.propertyByDefinitionKey(
+      sourceValuePropertyKey,
+    );
+    if (sourceValue == null ||
+        sourceValue.value.valueType != propertyDefinition.valueType) {
+      return property.value.deepCopy();
+    }
+    return sourceValue.value.deepCopy();
   }
 
   MaterialResolvedOutputSize _resolveGraphOutputSize(

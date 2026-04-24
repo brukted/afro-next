@@ -34,10 +34,14 @@ void main() {
     final circle = catalog.definitionById('circle_node');
 
     expect(solidColor.properties.map((property) => property.key), [
+      'outputSizeMode',
+      'outputSizeValue',
       'color',
       '_output',
     ]);
     expect(mix.properties.map((property) => property.key), [
+      'outputSizeMode',
+      'outputSizeValue',
       'Foreground',
       'Background',
       'Mask',
@@ -47,6 +51,8 @@ void main() {
       '_output',
     ]);
     expect(channelSelect.properties.map((property) => property.key), [
+      'outputSizeMode',
+      'outputSizeValue',
       'input1',
       'input2',
       'channel_red',
@@ -56,6 +62,8 @@ void main() {
       '_output',
     ]);
     expect(circle.properties.map((property) => property.key), [
+      'outputSizeMode',
+      'outputSizeValue',
       'radius',
       'outline',
       'width',
@@ -94,7 +102,6 @@ void main() {
     final mix = catalog.definitionById('mix_node');
     final channelSelect = catalog.definitionById('channel_select_node');
     final circle = catalog.definitionById('circle_node');
-    final curveDemo = catalog.definitionById('curve_demo_node');
 
     expect(
       _vector4Values(
@@ -116,28 +123,70 @@ void main() {
     );
     expect(circle.propertyDefinition('width').defaultValue, 0.1);
     expect(circle.propertyDefinition('height').defaultValue, 0.1);
-    expect(
-      curveDemo.propertyDefinition('curve').defaultValue,
-      isA<GraphColorCurveData>(),
-    );
-    expect(
-      (curveDemo.propertyDefinition('curve').defaultValue
-              as GraphColorCurveData)
-          .lum
-          .points
-          .length,
-      2,
-    );
   });
 
-  test('starter graph includes the curve demo node', () {
+  test('starter graph excludes removed demo nodes', () {
     final catalog = MaterialGraphCatalog(IdFactory());
     final graph = catalog.createStarterGraph(name: 'Starter');
 
     expect(
       graph.nodes.any((node) => node.definitionId == 'curve_demo_node'),
-      isTrue,
+      isFalse,
     );
+    expect(
+      graph.nodes.any((node) => node.definitionId == 'image_basic_node'),
+      isFalse,
+    );
+  });
+
+  test('catalog exposes the trimmed material input nodes', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final definitionIds = catalog.definitions.map((definition) => definition.id);
+    final inputGradient = catalog.definitionById('input_gradient_node');
+    final inputCurve = catalog.definitionById('input_curve_node');
+    final inputText = catalog.definitionById('input_text_node');
+    final inputColor = catalog.definitionById('input_color_node');
+
+    expect(
+      definitionIds,
+      containsAll(<String>[
+        'input_integer_node',
+        'input_integer2_node',
+        'input_integer3_node',
+        'input_integer4_node',
+        'input_matrix3_node',
+        'input_string_node',
+        'input_color_node',
+        'input_gradient_node',
+        'input_curve_node',
+        'input_text_node',
+      ]),
+    );
+    expect(definitionIds, isNot(contains('input_workspace_resource_node')));
+    expect(definitionIds, isNot(contains('input_blend_mode_node')));
+    expect(definitionIds, isNot(contains('input_alpha_mode_node')));
+    expect(definitionIds, isNot(contains('input_channel_mode_node')));
+    expect(definitionIds, isNot(contains('input_fx_blend_mode_node')));
+    expect(definitionIds, isNot(contains('image_basic_node')));
+
+    expect(
+      inputColor.propertyDefinition('_output').socketTransport,
+      GraphSocketTransport.texture,
+    );
+    expect(
+      inputColor.propertyDefinition('value').valueUnit,
+      GraphValueUnit.color,
+    );
+    expect(
+      inputGradient.propertyDefinition('_output').socketTransport,
+      GraphSocketTransport.texture,
+    );
+    expect(
+      inputGradient.propertyDefinition('_output').valueType,
+      GraphValueType.gradient,
+    );
+    expect(inputCurve.propertyDefinition('_output').valueType, GraphValueType.colorBezierCurve);
+    expect(inputText.propertyDefinition('_output').valueType, GraphValueType.textBlock);
   });
 
   test('catalog exposes Afro fullscreen expansion nodes with expected contracts', () {
@@ -178,6 +227,8 @@ void main() {
 
     expect(levels.runtime.shaderAssetId, 'material/levels.frag');
     expect(levels.properties.map((property) => property.key), [
+      'outputSizeMode',
+      'outputSizeValue',
       'MainTex',
       'minValues',
       'maxValues',
@@ -205,6 +256,8 @@ void main() {
     );
 
     expect(gradientMap.properties.map((property) => property.key), [
+      'outputSizeMode',
+      'outputSizeValue',
       'MainTex',
       'ColorLUT',
       'Mask',

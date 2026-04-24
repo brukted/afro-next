@@ -27,6 +27,7 @@ class MathGraphInspectorPanel extends StatelessWidget {
     final node = controller.selectedNode;
     final diagnostics = controller.diagnostics;
     final compiledFunction = controller.compiledFunction;
+    final inputNodes = controller.graphInputNodes;
 
     return PanelFrame(
       title: 'Math Inspector',
@@ -55,6 +56,8 @@ class MathGraphInspectorPanel extends StatelessWidget {
             const SizedBox(height: 10),
           ] else
             const _EmptySelectionCard(),
+          _MathGraphInputsCard(controller: controller, nodes: inputNodes),
+          const SizedBox(height: 10),
           _DiagnosticsCard(diagnostics: diagnostics),
           const SizedBox(height: 10),
           _CompiledSourceCard(
@@ -62,6 +65,77 @@ class MathGraphInspectorPanel extends StatelessWidget {
             hasErrors: controller.hasErrors,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MathGraphInputsCard extends StatelessWidget {
+  const _MathGraphInputsCard({required this.controller, required this.nodes});
+
+  final MathGraphController controller;
+  final List<GraphNodeDocument> nodes;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(propertyEditorCornerRadius),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.28),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Graph Inputs', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 6),
+            if (nodes.isEmpty)
+              Text(
+                'No input nodes in this graph.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              ...nodes.map((node) {
+                final definition = controller.definitionForNode(node);
+                final identifier =
+                    node.propertyByDefinitionKey('identifier')?.value.stringValue ??
+                    node.name;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(node.name),
+                            Text(
+                              '$identifier · ${propertyEditorTypeLabel(definition.outputDefinition?.valueType)}',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => controller.selectNode(node.id),
+                        child: const Text('Edit'),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }

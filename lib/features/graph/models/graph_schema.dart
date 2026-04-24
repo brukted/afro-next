@@ -26,6 +26,8 @@ enum GraphPropertyType { input, output, descriptor }
 
 enum GraphSocketDirection { input, output }
 
+enum GraphSocketTransport { value, texture }
+
 enum GraphCurveChannel { luminance, red, green, blue, alpha }
 
 enum GraphResourceKind { image, svg }
@@ -692,6 +694,7 @@ class GraphPropertyDefinition {
     this.enumOptions = const <EnumChoiceOption>[],
     this.runtimeTextureBindingKey,
     this.resourceKinds = const <GraphResourceKind>[],
+    this.socketTransport = GraphSocketTransport.value,
   });
 
   final String key;
@@ -709,6 +712,7 @@ class GraphPropertyDefinition {
   final List<EnumChoiceOption> enumOptions;
   final String? runtimeTextureBindingKey;
   final List<GraphResourceKind> resourceKinds;
+  final GraphSocketTransport socketTransport;
 
   bool get isSocket => socket;
 

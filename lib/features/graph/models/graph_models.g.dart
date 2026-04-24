@@ -31,6 +31,7 @@ GraphNodeDocument _$GraphNodeDocumentFromJson(Map<String, dynamic> json) =>
       properties: (json['properties'] as List<dynamic>)
           .map((e) => GraphNodePropertyData.fromJson(e as Map<String, dynamic>))
           .toList(),
+      inputUnitId: json['inputUnitId'] as String?,
     );
 
 Map<String, dynamic> _$GraphNodeDocumentToJson(GraphNodeDocument instance) =>
@@ -40,6 +41,7 @@ Map<String, dynamic> _$GraphNodeDocumentToJson(GraphNodeDocument instance) =>
       'name': instance.name,
       'position': const Vector2JsonConverter().toJson(instance.position),
       'properties': instance.properties.map((e) => e.toJson()).toList(),
+      'inputUnitId': instance.inputUnitId,
     };
 
 GraphLinkDocument _$GraphLinkDocumentFromJson(Map<String, dynamic> json) =>

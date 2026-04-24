@@ -240,6 +240,8 @@ class _MathGraphPanelState extends State<MathGraphPanel> {
                     id: binding.id,
                     label: binding.label,
                     direction: binding.definition.socketDirection!,
+                    valueType: binding.definition.valueType,
+                    valueUnit: binding.definition.valueUnit,
                     isConnected:
                         binding.definition.socketDirection ==
                             GraphSocketDirection.input

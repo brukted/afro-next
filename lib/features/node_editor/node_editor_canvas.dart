@@ -499,7 +499,7 @@ class _NodeCard<T> extends StatelessWidget {
                               _SocketDot(
                                 isActive: pendingPropertyId == socket.id,
                                 isConnected: socket.isConnected,
-                                color: node.accentColor,
+                                color: socket.color,
                               )
                             else
                               const SizedBox(width: 10),
@@ -518,7 +518,7 @@ class _NodeCard<T> extends StatelessWidget {
                               _SocketDot(
                                 isActive: pendingPropertyId == socket.id,
                                 isConnected: socket.isConnected,
-                                color: node.accentColor,
+                                color: socket.color,
                               ),
                             ] else
                               const SizedBox(width: 10),

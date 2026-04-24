@@ -136,6 +136,29 @@ void main() {
     expect(_panelText('Background Color'), findsOneWidget);
     expect(_panelText('Text Color'), findsOneWidget);
   });
+
+  testWidgets('graph input list is shown when no node is selected', (
+    tester,
+  ) async {
+    final catalog = _buildCatalog();
+    final inputNode = catalog.instantiateNode(
+      definitionId: 'input_color_node',
+      position: Vector2.zero(),
+    );
+    final graph = GraphDocument(
+      id: 'input-graph',
+      name: 'Inputs',
+      nodes: [inputNode],
+      links: const [],
+    );
+    final controller = _createBoundController(graph);
+
+    await _pumpPropertyEditor(tester, controller: controller);
+
+    expect(_panelText('Graph Inputs'), findsOneWidget);
+    expect(_panelText('Input Color 1'), findsOneWidget);
+    expect(_panelText('resource default'), findsNothing);
+  });
 }
 
 MaterialGraphCatalog _buildCatalog() => MaterialGraphCatalog(IdFactory());

@@ -453,6 +453,7 @@ class GraphNodeDocument {
     required this.name,
     required this.position,
     required this.properties,
+    this.inputUnitId,
   });
 
   final String id;
@@ -463,6 +464,20 @@ class GraphNodeDocument {
   final Vector2 position;
 
   final List<GraphNodePropertyData> properties;
+  final String? inputUnitId;
+
+  GraphValueUnit? get inputUnit {
+    final unitId = inputUnitId;
+    if (unitId == null || unitId.isEmpty) {
+      return null;
+    }
+    for (final unit in GraphValueUnit.values) {
+      if (unit.name == unitId) {
+        return unit;
+      }
+    }
+    return null;
+  }
 
   GraphNodeDocument copyWith({
     String? id,
@@ -470,6 +485,7 @@ class GraphNodeDocument {
     String? name,
     Vector2? position,
     List<GraphNodePropertyData>? properties,
+    Object? inputUnitId = _graphNodeDocumentUndefined,
   }) {
     return GraphNodeDocument(
       id: id ?? this.id,
@@ -477,6 +493,9 @@ class GraphNodeDocument {
       name: name ?? this.name,
       position: position ?? this.position,
       properties: properties ?? this.properties,
+      inputUnitId: identical(inputUnitId, _graphNodeDocumentUndefined)
+          ? this.inputUnitId
+          : inputUnitId as String?,
     );
   }
 
@@ -505,6 +524,8 @@ class GraphNodeDocument {
 
   Map<String, dynamic> toJson() => _$GraphNodeDocumentToJson(this);
 }
+
+const Object _graphNodeDocumentUndefined = Object();
 
 @JsonSerializable()
 class GraphLinkDocument {

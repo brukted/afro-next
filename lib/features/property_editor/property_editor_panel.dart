@@ -39,10 +39,16 @@ class PropertyEditorPanel extends StatelessWidget {
 
     final node = controller.selectedNode;
     if (node == null) {
-      return const PanelFrame(
+      return PanelFrame(
         title: 'Property Editor',
-        subtitle: 'Select a node to inspect it.',
-        child: Center(child: Text('Nothing selected')),
+        subtitle: 'Graph inputs',
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(10),
+          child: _GraphInputsCard(
+            controller: controller,
+            graphInputNodes: controller.graphInputNodes,
+          ),
+        ),
       );
     }
 
@@ -61,6 +67,16 @@ class PropertyEditorPanel extends StatelessWidget {
     final accentColor = Vector4ColorAdapter.toFlutterColor(
       definition.accentColor,
     );
+    GraphPropertyBinding? inputValueProperty;
+    final inputValueKey = definition.inputValuePropertyKey;
+    if (inputValueKey != null) {
+      for (final property in properties) {
+        if (property.definition.key == inputValueKey) {
+          inputValueProperty = property;
+          break;
+        }
+      }
+    }
 
     return PanelFrame(
       title: 'Property Editor',
@@ -118,6 +134,15 @@ class PropertyEditorPanel extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
+            _NodeNameField(controller: controller, node: node),
+            const SizedBox(height: 8),
+            if (definition.isGraphInput && inputValueProperty != null) ...[
+              _InputUnitField(
+                controller: controller,
+                node: node,
+              ),
+              const SizedBox(height: 8),
+            ],
             ...editableProperties.map(
               (property) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -128,6 +153,12 @@ class PropertyEditorPanel extends StatelessWidget {
                   property: property,
                 ),
               ),
+            ),
+            const SizedBox(height: 2),
+            _GraphInputsCard(
+              controller: controller,
+              graphInputNodes: controller.graphInputNodes,
+              compact: true,
             ),
             if (outputProperties.isNotEmpty) ...[
               const SizedBox(height: 2),
@@ -155,6 +186,158 @@ class PropertyEditorPanel extends StatelessWidget {
   }
 }
 
+class _GraphInputsCard extends StatelessWidget {
+  const _GraphInputsCard({
+    required this.controller,
+    required this.graphInputNodes,
+    this.compact = false,
+  });
+
+  final MaterialGraphController controller;
+  final List<GraphNodeDocument> graphInputNodes;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(propertyEditorCornerRadius),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Graph Inputs', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 6),
+            if (graphInputNodes.isEmpty)
+              Text(
+                'No input nodes in this graph.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              ...graphInputNodes.map((node) {
+                final definition = controller.definitionForNode(node);
+                final inputValueKey = definition.inputValuePropertyKey;
+                final resourceKey = definition.inputResourcePropertyKey;
+                final resourceId = resourceKey == null
+                    ? ''
+                    : node
+                              .propertyByDefinitionKey(resourceKey)
+                              ?.value
+                              .asWorkspaceResource() ??
+                          '';
+                final details = resourceId.isNotEmpty
+                    ? 'resource default'
+                    : propertyEditorTypeLabel(
+                        node
+                            .propertyByDefinitionKey(inputValueKey ?? '')
+                            ?.value
+                            .valueType,
+                      );
+                final selectedUnit = controller.inputUnitForNode(node);
+                final detailText = selectedUnit == GraphValueUnit.none
+                    ? details
+                    : '$details · ${controller.inputUnitLabel(selectedUnit)}';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(node.name),
+                            Text(
+                              detailText,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => controller.selectNode(node.id),
+                        child: Text(compact ? 'Open' : 'Edit'),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NodeNameField extends StatelessWidget {
+  const _NodeNameField({required this.controller, required this.node});
+
+  final MaterialGraphController controller;
+  final GraphNodeDocument node;
+
+  @override
+  Widget build(BuildContext context) {
+    return PropertyEditorCard(
+      label: 'Node Name',
+      child: PropertyEditorStringValueEditor(
+        initialValue: node.name,
+        onSubmitted: (nextValue) => controller.renameNode(node.id, nextValue),
+      ),
+    );
+  }
+}
+
+class _InputUnitField extends StatelessWidget {
+  const _InputUnitField({
+    required this.controller,
+    required this.node,
+  });
+
+  final MaterialGraphController controller;
+  final GraphNodeDocument node;
+
+  @override
+  Widget build(BuildContext context) {
+    final options = controller.availableInputUnitsForNode(node);
+    final selectedUnit = controller.inputUnitForNode(node);
+
+    return PropertyEditorCard(
+      label: 'Input Unit',
+      description:
+          'Metadata only. This does not change socket compatibility or runtime behavior.',
+      child: DropdownButtonFormField<GraphValueUnit>(
+        initialValue: selectedUnit,
+        decoration: propertyEditorDenseInputDecoration(),
+        items: options
+            .map(
+              (unit) => DropdownMenuItem<GraphValueUnit>(
+                value: unit,
+                child: Text(controller.inputUnitLabel(unit)),
+              ),
+            )
+            .toList(growable: false),
+        onChanged: (nextValue) {
+          if (nextValue == null) {
+            return;
+          }
+          controller.updateInputUnit(node.id, nextValue);
+        },
+      ),
+    );
+  }
+}
+
 class _EditablePropertyField extends StatelessWidget {
   const _EditablePropertyField({
     required this.controller,
@@ -171,6 +354,10 @@ class _EditablePropertyField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final definition = property.definition;
+    final canExpose = controller.canExposePropertyAsInput(
+      nodeId: nodeId,
+      property: property,
+    );
 
     return PropertyEditorCard(
       label: property.label,
@@ -178,7 +365,10 @@ class _EditablePropertyField extends StatelessWidget {
           ? null
           : definition.description,
       badge: _buildBadge(context),
-      child: switch (definition.valueType) {
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          switch (definition.valueType) {
         GraphValueType.integer => PropertyEditorNumericValueEditor(
           value: (property.value as int).toDouble(),
           integer: true,
@@ -433,7 +623,23 @@ class _EditablePropertyField extends StatelessWidget {
             value: GraphValueData.textBlock(nextText),
           ),
         ),
-      },
+          },
+          if (canExpose) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => controller.exposePropertyAsInput(
+                  nodeId: nodeId,
+                  propertyId: property.id,
+                ),
+                icon: const Icon(Icons.input_outlined, size: 16),
+                label: const Text('Expose as input'),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

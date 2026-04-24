@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart';
 
+import '../graph/graph_value_type_colors.dart';
 import '../graph/models/graph_schema.dart';
 
 const double nodeEditorNodeWidth = 204;
@@ -38,13 +39,20 @@ class NodeEditorSocketViewModel {
     required this.id,
     required this.label,
     required this.direction,
+    required this.valueType,
+    this.valueUnit = GraphValueUnit.none,
     this.isConnected = false,
   });
 
   final String id;
   final String label;
   final GraphSocketDirection direction;
+  final GraphValueType valueType;
+  final GraphValueUnit valueUnit;
   final bool isConnected;
+
+  Color get color =>
+      graphValueTypeSocketColor(valueType, valueUnit: valueUnit);
 }
 
 class NodeEditorNodeViewModel<T> {

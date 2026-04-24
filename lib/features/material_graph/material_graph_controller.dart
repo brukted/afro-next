@@ -13,6 +13,7 @@ import '../graph/models/graph_schema.dart';
 import 'material_graph_catalog.dart';
 import 'material_node_definition.dart';
 import 'material_output_size.dart';
+import 'material_socket_compatibility.dart';
 import 'runtime/material_graph_compiler.dart';
 import 'runtime/material_execution_ir.dart';
 import 'runtime/material_graph_runtime.dart';
@@ -106,6 +107,85 @@ class MaterialGraphController extends ChangeNotifier {
     }
 
     return graph.nodes.firstWhereOrNull((node) => node.id == nodeId);
+  }
+
+  List<GraphNodeDocument> get graphInputNodes {
+    if (!hasGraph) {
+      return const <GraphNodeDocument>[];
+    }
+    return graph.nodes
+        .where((node) => definitionForNode(node).isGraphInput)
+        .toList(growable: false);
+  }
+
+  GraphValueUnit inputUnitForNode(GraphNodeDocument node) {
+    final selectedUnit = node.inputUnit;
+    if (selectedUnit != null) {
+      return selectedUnit;
+    }
+    final inputValueKey = definitionForNode(node).inputValuePropertyKey;
+    if (inputValueKey == null) {
+      return GraphValueUnit.none;
+    }
+    return definitionForNode(node).propertyDefinition(inputValueKey).valueUnit;
+  }
+
+  List<GraphValueUnit> availableInputUnitsForNode(GraphNodeDocument node) {
+    final inputValueKey = definitionForNode(node).inputValuePropertyKey;
+    if (inputValueKey == null) {
+      return const <GraphValueUnit>[GraphValueUnit.none];
+    }
+    return availableInputUnitsForDefinition(
+      definitionForNode(node).propertyDefinition(inputValueKey),
+    );
+  }
+
+  List<GraphValueUnit> availableInputUnitsForDefinition(
+    GraphPropertyDefinition definition,
+  ) {
+    return switch (definition.valueType) {
+      GraphValueType.integer => const <GraphValueUnit>[
+        GraphValueUnit.none,
+        GraphValueUnit.power2,
+      ],
+      GraphValueType.integer2 => const <GraphValueUnit>[
+        GraphValueUnit.none,
+        GraphValueUnit.position,
+        GraphValueUnit.power2,
+      ],
+      GraphValueType.integer3 => const <GraphValueUnit>[
+        GraphValueUnit.none,
+        GraphValueUnit.position,
+      ],
+      GraphValueType.float => const <GraphValueUnit>[
+        GraphValueUnit.none,
+        GraphValueUnit.rotation,
+      ],
+      GraphValueType.float2 => const <GraphValueUnit>[
+        GraphValueUnit.none,
+        GraphValueUnit.position,
+        GraphValueUnit.power2,
+      ],
+      GraphValueType.float3 => const <GraphValueUnit>[
+        GraphValueUnit.none,
+        GraphValueUnit.position,
+        GraphValueUnit.color,
+      ],
+      GraphValueType.float4 when definition.valueUnit == GraphValueUnit.color =>
+        const <GraphValueUnit>[GraphValueUnit.color],
+      _ => <GraphValueUnit>[definition.valueUnit],
+    };
+  }
+
+  String inputUnitLabel(GraphValueUnit unit) {
+    return switch (unit) {
+      GraphValueUnit.none => 'None',
+      GraphValueUnit.rotation => 'Rotation',
+      GraphValueUnit.position => 'Position',
+      GraphValueUnit.power2 => 'Power of Two',
+      GraphValueUnit.color => 'Color',
+      GraphValueUnit.path => 'Path',
+    };
   }
 
   Future<void> initialize() async {
@@ -317,6 +397,54 @@ class MaterialGraphController extends ChangeNotifier {
     );
   }
 
+  void renameNode(String nodeId, String name) {
+    final node = nodeById(nodeId);
+    final trimmedName = name.trim();
+    if (node == null || trimmedName.isEmpty || node.name == trimmedName) {
+      return;
+    }
+
+    _commitGraph(
+      graph.copyWith(
+        nodes: graph.nodes
+            .map((entry) => entry.id == nodeId ? entry.copyWith(name: trimmedName) : entry)
+            .toList(growable: false),
+      ),
+      refreshPreviews: false,
+    );
+  }
+
+  void updateInputUnit(String nodeId, GraphValueUnit unit) {
+    final node = nodeById(nodeId);
+    if (node == null) {
+      return;
+    }
+    final definition = definitionForNode(node);
+    if (!definition.isGraphInput) {
+      return;
+    }
+    final supportedUnits = availableInputUnitsForNode(node);
+    if (!supportedUnits.contains(unit)) {
+      return;
+    }
+    if (node.inputUnit == unit) {
+      return;
+    }
+
+    _commitGraph(
+      graph.copyWith(
+        nodes: graph.nodes
+            .map(
+              (entry) => entry.id == nodeId
+                  ? entry.copyWith(inputUnitId: unit.name)
+                  : entry,
+            )
+            .toList(growable: false),
+      ),
+      refreshPreviews: false,
+    );
+  }
+
   void duplicateNode(String nodeId) {
     final source = nodeById(nodeId);
     if (source == null) {
@@ -337,6 +465,7 @@ class MaterialGraphController extends ChangeNotifier {
             ),
           )
           .toList(growable: false),
+      inputUnitId: source.inputUnitId,
     );
 
     _selectedNodeId = duplicatedNode.id;
@@ -414,6 +543,105 @@ class MaterialGraphController extends ChangeNotifier {
             .toList(growable: false),
       ),
       dirtyRootNodeIds: dirtyRootNodeIds,
+    );
+  }
+
+  bool canExposePropertyAsInput({
+    required String nodeId,
+    required GraphPropertyBinding property,
+  }) {
+    final node = nodeById(nodeId);
+    if (node == null || definitionForNode(node).isGraphInput) {
+      return false;
+    }
+    if (property.definition.propertyType != GraphPropertyType.input ||
+        !property.definition.isSocket) {
+      return false;
+    }
+    return _catalog.inputDefinitionIdForProperty(property.definition) != null;
+  }
+
+  void exposePropertyAsInput({
+    required String nodeId,
+    required String propertyId,
+  }) {
+    final node = nodeById(nodeId);
+    if (node == null) {
+      return;
+    }
+    final nodeDefinition = definitionForNode(node);
+    if (nodeDefinition.isGraphInput) {
+      return;
+    }
+    final property = node.propertyById(propertyId);
+    if (property == null) {
+      return;
+    }
+    final propertyDefinition = nodeDefinition.propertyDefinition(property.definitionKey);
+    final inputDefinitionId = _catalog.inputDefinitionIdForProperty(propertyDefinition);
+    if (inputDefinitionId == null ||
+        propertyDefinition.propertyType != GraphPropertyType.input ||
+        !propertyDefinition.isSocket) {
+      return;
+    }
+
+    final matchingNodeCount = graph.nodes
+        .where((entry) => entry.definitionId == inputDefinitionId)
+        .length;
+    final inputDefinition = _catalog.definitionById(inputDefinitionId);
+    var inputNode = _catalog.instantiateNode(
+      definitionId: inputDefinitionId,
+      position: node.position + Vector2(-320, 0),
+      sequence: matchingNodeCount + 1,
+    );
+    final inputValueKey = inputDefinition.inputValuePropertyKey;
+    final nextName = _nextAvailableNodeName('${propertyDefinition.label} Input');
+    inputNode = inputNode.copyWith(
+      name: nextName,
+      inputUnitId: propertyDefinition.valueUnit.name,
+      properties: inputNode.properties
+          .map((entry) {
+            if (entry.definitionKey == inputValueKey) {
+              return entry.copyWith(value: property.value.deepCopy());
+            }
+            return entry;
+          })
+          .toList(growable: false),
+    );
+    final outputProperty = inputNode.propertyByDefinitionKey('_output');
+    if (outputProperty == null) {
+      return;
+    }
+    final outputDefinition = inputDefinition.propertyDefinition('_output');
+    if (!_canConnectResolvedProperties(
+      fromNode: inputNode,
+      fromProperty: outputProperty,
+      fromDefinition: outputDefinition,
+      toNode: node,
+      toProperty: property,
+      toDefinition: propertyDefinition,
+    )) {
+      return;
+    }
+
+    final nextLinks = graph.links
+        .where((link) => link.toPropertyId != propertyId)
+        .toList(growable: true)
+      ..add(
+        GraphLinkDocument(
+          id: _idFactory.next(),
+          fromNodeId: inputNode.id,
+          fromPropertyId: outputProperty.id,
+          toNodeId: node.id,
+          toPropertyId: property.id,
+        ),
+      );
+
+    _selectedNodeId = inputNode.id;
+    _pendingConnection = null;
+    _commitGraph(
+      graph.copyWith(nodes: [...graph.nodes, inputNode], links: nextLinks),
+      dirtyRootNodeIds: [inputNode.id, node.id],
     );
   }
 
@@ -719,6 +947,14 @@ class MaterialGraphController extends ChangeNotifier {
     required String toNodeId,
     required String toPropertyId,
   }) {
+    if (!_canConnectProperties(
+      fromNodeId: fromNodeId,
+      fromPropertyId: fromPropertyId,
+      toNodeId: toNodeId,
+      toPropertyId: toPropertyId,
+    )) {
+      return;
+    }
     final filteredLinks = graph.links
         .where((link) {
           if (link.toPropertyId == toPropertyId) {
@@ -745,8 +981,69 @@ class MaterialGraphController extends ChangeNotifier {
     _pendingConnection = null;
     _commitGraph(
       graph.copyWith(links: filteredLinks),
-      dirtyRootNodeIds: [fromNodeId],
+      dirtyRootNodeIds: [fromNodeId, toNodeId],
     );
+  }
+
+  bool _canConnectProperties({
+    required String fromNodeId,
+    required String fromPropertyId,
+    required String toNodeId,
+    required String toPropertyId,
+  }) {
+    final fromNode = nodeById(fromNodeId);
+    final toNode = nodeById(toNodeId);
+    if (fromNode == null || toNode == null) {
+      return false;
+    }
+    if (fromNode.id == toNode.id) {
+      return false;
+    }
+    final fromProperty = fromNode.propertyById(fromPropertyId);
+    final toProperty = toNode.propertyById(toPropertyId);
+    if (fromProperty == null || toProperty == null) {
+      return false;
+    }
+    final fromDefinition = definitionForNode(
+      fromNode,
+    ).propertyDefinition(fromProperty.definitionKey);
+    final toDefinition = definitionForNode(
+      toNode,
+    ).propertyDefinition(toProperty.definitionKey);
+    return _canConnectResolvedProperties(
+      fromNode: fromNode,
+      fromProperty: fromProperty,
+      fromDefinition: fromDefinition,
+      toNode: toNode,
+      toProperty: toProperty,
+      toDefinition: toDefinition,
+    );
+  }
+
+  bool _canConnectResolvedProperties({
+    required GraphNodeDocument fromNode,
+    required GraphNodePropertyData fromProperty,
+    required GraphPropertyDefinition fromDefinition,
+    required GraphNodeDocument toNode,
+    required GraphNodePropertyData toProperty,
+    required GraphPropertyDefinition toDefinition,
+  }) {
+    if (!materialSocketDefinitionsCompatible(
+      fromDefinition: fromDefinition,
+      toDefinition: toDefinition,
+    )) {
+      return false;
+    }
+    if (toDefinition.socketTransport == GraphSocketTransport.texture) {
+      return true;
+    }
+    final fromNodeDefinition = definitionForNode(fromNode);
+    final sourceValueKey = fromNodeDefinition.inputValuePropertyKey;
+    if (!fromNodeDefinition.isGraphInput || sourceValueKey == null) {
+      return false;
+    }
+    final sourceValueProperty = fromNode.propertyByDefinitionKey(sourceValueKey);
+    return sourceValueProperty?.value.valueType == toDefinition.valueType;
   }
 
   void _updatePropertyValue({
@@ -837,6 +1134,22 @@ class MaterialGraphController extends ChangeNotifier {
     while (true) {
       final suffix = index == 1 ? ' Copy' : ' Copy $index';
       final candidate = '$baseName$suffix';
+      if (!takenNames.contains(candidate)) {
+        return candidate;
+      }
+      index += 1;
+    }
+  }
+
+  String _nextAvailableNodeName(String baseName) {
+    final takenNames = graph.nodes.map((node) => node.name).toSet();
+    if (!takenNames.contains(baseName)) {
+      return baseName;
+    }
+
+    var index = 2;
+    while (true) {
+      final candidate = '$baseName $index';
       if (!takenNames.contains(candidate)) {
         return candidate;
       }

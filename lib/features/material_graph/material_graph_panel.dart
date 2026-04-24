@@ -6,6 +6,8 @@ import 'package:vector_math/vector_math.dart' show Vector2;
 import '../../shared/colors/vector4_color_adapter.dart';
 import '../../shared/widgets/panel_frame.dart';
 import '../../vulkan/resources/preview_render_target.dart';
+import '../graph/models/graph_bindings.dart';
+import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import '../node_editor/node_editor_canvas.dart';
 import '../node_editor/node_editor_models.dart';
@@ -28,10 +30,32 @@ final double _materialNodePreviewSurfaceExtent =
     nodeEditorNodeWidth - nodeEditorBodyPadding.horizontal;
 const double _materialNodePreviewFooterSpacing = 6;
 const double _materialNodePreviewFooterHeight = 28;
+const double _materialInputCompactBodyHeight = 60;
 final double _materialNodePreviewBodyHeight =
     _materialNodePreviewSurfaceExtent +
     _materialNodePreviewFooterSpacing +
     _materialNodePreviewFooterHeight;
+
+class _MaterialNodeBodyData {
+  const _MaterialNodeBodyData.preview(this.preview)
+    : summary = '',
+      detail = '',
+      sizeLabel = '',
+      showPreview = true;
+
+  const _MaterialNodeBodyData.compact({
+    required this.summary,
+    required this.detail,
+    required this.sizeLabel,
+  }) : preview = null,
+       showPreview = false;
+
+  final PreviewRenderTarget? preview;
+  final String summary;
+  final String detail;
+  final String sizeLabel;
+  final bool showPreview;
+}
 
 class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
   late final NodeEditorViewportController _viewportController;
@@ -175,7 +199,7 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                   constraints.maxHeight,
                 );
                 final nodes = _buildNodeViewModels();
-                return NodeEditorCanvas<PreviewRenderTarget?>(
+                return NodeEditorCanvas<_MaterialNodeBodyData>(
                   viewportController: _viewportController,
                   nodes: nodes,
                   links: graph.links,
@@ -216,13 +240,17 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                     );
                   },
                   buildNodeBody: (context, nodeViewModel) {
-                    return MaterialNodePreviewCard(
-                      title: nodeViewModel.title,
-                      preview: nodeViewModel.bodyData,
-                      resolvedOutputSizeLabel: _resolvedNodeSizeLabel(
-                        nodeViewModel.id,
-                      ),
-                    );
+                    final bodyData = nodeViewModel.bodyData!;
+                    if (bodyData.showPreview) {
+                      return MaterialNodePreviewCard(
+                        title: nodeViewModel.title,
+                        preview: bodyData.preview,
+                        resolvedOutputSizeLabel: _resolvedNodeSizeLabel(
+                          nodeViewModel.id,
+                        ),
+                      );
+                    }
+                    return _MaterialInputSummaryCard(data: bodyData);
                   },
                 );
               },
@@ -233,7 +261,7 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
     );
   }
 
-  List<NodeEditorNodeViewModel<PreviewRenderTarget?>> _buildNodeViewModels() {
+  List<NodeEditorNodeViewModel<_MaterialNodeBodyData>> _buildNodeViewModels() {
     return _controller.graph.nodes
         .map((node) {
           final definition = _controller.definitionForNode(node);
@@ -242,14 +270,22 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
           );
           final bindings = _controller.boundPropertiesForNode(node);
 
-          return NodeEditorNodeViewModel<PreviewRenderTarget?>(
+          final bodyData = _buildNodeBodyData(
+            node: node,
+            definition: definition,
+            bindings: bindings,
+          );
+
+          return NodeEditorNodeViewModel<_MaterialNodeBodyData>(
             id: node.id,
             title: node.name,
             position: node.position,
             icon: definition.icon,
             accentColor: accentColor,
-            bodyHeight: _materialNodePreviewBodyHeight,
-            bodyData: _controller.previewForNode(node.id),
+            bodyHeight: bodyData.showPreview
+                ? _materialNodePreviewBodyHeight
+                : _materialInputCompactBodyHeight,
+            bodyData: bodyData,
             sockets: bindings
                 .where((binding) => binding.definition.isSocket)
                 .map(
@@ -257,6 +293,8 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
                     id: binding.id,
                     label: binding.label,
                     direction: binding.definition.socketDirection!,
+                    valueType: binding.definition.valueType,
+                    valueUnit: binding.definition.valueUnit,
                     isConnected:
                         binding.definition.socketDirection ==
                             GraphSocketDirection.input
@@ -268,6 +306,111 @@ class _MaterialGraphPanelState extends State<MaterialGraphPanel> {
           );
         })
         .toList(growable: false);
+  }
+
+  _MaterialNodeBodyData _buildNodeBodyData({
+    required GraphNodeDocument node,
+    required MaterialNodeDefinition definition,
+    required List<GraphPropertyBinding> bindings,
+  }) {
+    if (!_usesPreviewBody(definition)) {
+      final inputValueKey = definition.inputValuePropertyKey;
+      GraphPropertyBinding? inputValueBinding;
+      if (inputValueKey != null) {
+        for (final binding in bindings) {
+          if (binding.definition.key == inputValueKey) {
+            inputValueBinding = binding;
+            break;
+          }
+        }
+      }
+      final summary = inputValueBinding == null
+          ? 'Input'
+          : _typeLabel(inputValueBinding.definition.valueType);
+      final valueSummary = inputValueBinding == null
+          ? 'No value'
+          : _inputValueSummary(inputValueBinding.valueData);
+      final selectedUnit = _controller.inputUnitForNode(node);
+      final unitText = _controller.inputUnitLabel(selectedUnit);
+      final detail = unitText == 'None'
+          ? valueSummary
+          : '$unitText · $valueSummary';
+      return _MaterialNodeBodyData.compact(
+        summary: summary,
+        detail: detail,
+        sizeLabel: _resolvedNodeSizeLabel(node.id),
+      );
+    }
+
+    return _MaterialNodeBodyData.preview(_controller.previewForNode(node.id));
+  }
+
+  bool _usesPreviewBody(MaterialNodeDefinition definition) {
+    if (!definition.isGraphInput) {
+      return true;
+    }
+    final inputValueKey = definition.inputValuePropertyKey;
+    if (inputValueKey == null) {
+      return false;
+    }
+    final inputValueDefinition = definition.propertyDefinition(inputValueKey);
+    return inputValueDefinition.valueType == GraphValueType.float4 &&
+        inputValueDefinition.valueUnit == GraphValueUnit.color;
+  }
+
+  String _inputValueSummary(GraphValueData value) {
+    return switch (value.valueType) {
+      GraphValueType.integer => '${value.integerValue ?? 0}',
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 => (value.integerValues ?? const <int>[]).join(
+        ', ',
+      ),
+      GraphValueType.float => _formatDouble(value.floatValue ?? 0),
+      GraphValueType.float2 || GraphValueType.float3 || GraphValueType.float4 =>
+        (value.floatValues ?? const <double>[]).map(_formatDouble).join(', '),
+      GraphValueType.float3x3 => '3x3 matrix',
+      GraphValueType.stringValue =>
+        (value.stringValue ?? '').isEmpty ? 'Empty string' : value.stringValue!,
+      GraphValueType.workspaceResource =>
+        value.asWorkspaceResource().isEmpty
+            ? 'No resource'
+            : value.asWorkspaceResource(),
+      GraphValueType.boolean => (value.boolValue ?? false) ? 'True' : 'False',
+      GraphValueType.enumChoice => 'Option ${value.enumValue ?? 0}',
+      GraphValueType.gradient => 'Gradient',
+      GraphValueType.colorBezierCurve => 'Curve',
+      GraphValueType.textBlock =>
+        value.asTextBlock().text.isEmpty
+            ? 'Empty text'
+            : value.asTextBlock().text,
+    };
+  }
+
+  String _formatDouble(double value) {
+    final text = value.toStringAsFixed(3);
+    return text.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  String _typeLabel(GraphValueType type) {
+    return switch (type) {
+      GraphValueType.boolean => 'bool',
+      GraphValueType.integer => 'int',
+      GraphValueType.integer2 => 'ivec2',
+      GraphValueType.integer3 => 'ivec3',
+      GraphValueType.integer4 => 'ivec4',
+      GraphValueType.float => 'float',
+      GraphValueType.float2 => 'vec2',
+      GraphValueType.float3 => 'vec3',
+      GraphValueType.float4 => 'vec4',
+      GraphValueType.float3x3 => 'mat3',
+      GraphValueType.stringValue => 'string',
+      GraphValueType.workspaceResource => 'resource',
+      GraphValueType.enumChoice => 'enum',
+      GraphValueType.gradient => 'gradient',
+      GraphValueType.colorBezierCurve => 'curve',
+      GraphValueType.textBlock => 'text',
+    };
   }
 
   Future<void> _showCanvasMenu({
@@ -930,6 +1073,65 @@ class MaterialNodePreviewCard extends StatelessWidget {
               ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _MaterialInputSummaryCard extends StatelessWidget {
+  const _MaterialInputSummaryCard({required this.data});
+
+  final _MaterialNodeBodyData data;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xFF121720),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    data.summary,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  data.sizeLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              data.detail,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.white.withValues(alpha: 0.72),
+              ),
+            ),
+          ],
         ),
       ),
     );

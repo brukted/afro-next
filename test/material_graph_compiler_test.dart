@@ -325,6 +325,48 @@ void main() {
     expect(compiled.passForNode(blur.id)!.resolvedOutputSize.width, 1024);
     expect(compiled.passForNode(blur.id)!.resolvedOutputSize.height, 256);
   });
+
+  test('compiler resolves value socket bindings from material input nodes', () {
+    final catalog = _buildCatalog();
+    final input = _setFloatProperty(
+      catalog.instantiateNode(
+        definitionId: 'input_float_node',
+        position: vmath.Vector2.zero(),
+      ),
+      'value',
+      0.72,
+    );
+    final circle = catalog.instantiateNode(
+      definitionId: 'circle_node',
+      position: vmath.Vector2(320, 0),
+    );
+    final graph = GraphDocument(
+      id: 'value-input-graph',
+      name: 'Value Inputs',
+      nodes: [input, circle],
+      links: [
+        _connect(
+          fromNode: input,
+          fromKey: '_output',
+          toNode: circle,
+          toKey: 'radius',
+        ),
+      ],
+    );
+
+    final compiled = _compileGraph(catalog, graph);
+    final inputPass = compiled.passForNode(input.id)!;
+    final circlePass = compiled.passForNode(circle.id)!;
+    final radiusBinding = circlePass.parameterBindings.firstWhere(
+      (binding) => binding.bindingKey == 'radius',
+    );
+
+    expect(inputPass.textureInputs, hasLength(1));
+    expect(inputPass.textureInputs.single.bindingKey, 'MainTex');
+    expect(inputPass.textureInputs.single.fallbackValue.floatValue, 0.72);
+    expect(radiusBinding.valueType, GraphValueType.float);
+    expect(radiusBinding.value.floatValue, 0.72);
+  });
 }
 
 MaterialGraphCatalog _buildCatalog() => MaterialGraphCatalog(IdFactory());
@@ -392,6 +434,22 @@ GraphNodeDocument _updateNodeOutputMode(
           }
           return property;
         })
+        .toList(growable: false),
+  );
+}
+
+GraphNodeDocument _setFloatProperty(
+  GraphNodeDocument node,
+  String key,
+  double value,
+) {
+  return node.copyWith(
+    properties: node.properties
+        .map(
+          (property) => property.definitionKey == key
+              ? property.copyWith(value: GraphValueData.float(value))
+              : property,
+        )
         .toList(growable: false),
   );
 }

@@ -88,6 +88,15 @@ class MathGraphController extends ChangeNotifier {
     return graph.nodes.firstWhereOrNull((node) => node.id == nodeId);
   }
 
+  List<GraphNodeDocument> get graphInputNodes {
+    if (!hasGraph) {
+      return const <GraphNodeDocument>[];
+    }
+    return graph.nodes
+        .where((node) => definitionForNode(node).isInputParameter)
+        .toList(growable: false);
+  }
+
   void bindGraph({
     required GraphDocument graph,
     required ValueChanged<GraphDocument> onChanged,

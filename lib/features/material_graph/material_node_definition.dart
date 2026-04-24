@@ -5,6 +5,8 @@ import '../graph/models/graph_schema.dart';
 
 enum MaterialNodeExecutionKind { fragment, compute }
 
+enum MaterialNodeKind { effect, input }
+
 class MaterialNodeRuntimeDefinition {
   const MaterialNodeRuntimeDefinition({
     required this.executionKind,
@@ -27,14 +29,20 @@ class MaterialNodeDefinition {
     required this.icon,
     required this.accentColor,
     required this.runtime,
+    this.kind = MaterialNodeKind.effect,
     this.primaryInputPropertyKey,
+    this.inputValuePropertyKey,
+    this.inputResourcePropertyKey,
   });
 
   final GraphNodeSchema schema;
   final IconData icon;
   final Vector4 accentColor;
   final MaterialNodeRuntimeDefinition runtime;
+  final MaterialNodeKind kind;
   final String? primaryInputPropertyKey;
+  final String? inputValuePropertyKey;
+  final String? inputResourcePropertyKey;
 
   String get id => schema.id;
 
@@ -59,6 +67,8 @@ class MaterialNodeDefinition {
             .map((property) => property.key)
             .firstOrNull;
   }
+
+  bool get isGraphInput => kind == MaterialNodeKind.input;
 }
 
 extension<T> on Iterable<T> {
