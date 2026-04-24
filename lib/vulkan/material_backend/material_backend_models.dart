@@ -10,16 +10,36 @@ enum VulkanDescriptorBindingKind {
 
 enum VulkanImageTargetUsage { transientPass, preview, finalOutput }
 
+enum VulkanShaderKind { asset, generated }
+
 class VulkanShaderAsset {
-  const VulkanShaderAsset({
-    required this.assetId,
+  const VulkanShaderAsset.asset({
+    required String assetId,
     required this.stage,
     this.entryPoint = 'main',
-  });
+  }) : kind = VulkanShaderKind.asset,
+       assetId = assetId,
+       source = null,
+       cacheKey = assetId;
 
-  final String assetId;
+  const VulkanShaderAsset.generated({
+    required String source,
+    required String cacheKey,
+    required this.stage,
+    this.entryPoint = 'main',
+  }) : kind = VulkanShaderKind.generated,
+       assetId = null,
+       source = source,
+       cacheKey = cacheKey;
+
+  final VulkanShaderKind kind;
+  final String? assetId;
+  final String? source;
+  final String cacheKey;
   final MaterialNodeExecutionKind stage;
   final String entryPoint;
+
+  String get displayLabel => assetId ?? 'generated:$cacheKey';
 }
 
 class VulkanDescriptorBindingSpec {
@@ -38,12 +58,12 @@ class VulkanDescriptorBindingSpec {
 
 class VulkanMaterialPipelineCacheKey {
   const VulkanMaterialPipelineCacheKey({
-    required this.shaderAssetId,
+    required this.shaderKey,
     required this.executionKind,
     required this.sampledInputCount,
   });
 
-  final String shaderAssetId;
+  final String shaderKey;
   final MaterialNodeExecutionKind executionKind;
   final int sampledInputCount;
 }

@@ -30,7 +30,7 @@ enum GraphSocketTransport { value, texture }
 
 enum GraphCurveChannel { luminance, red, green, blue, alpha }
 
-enum GraphResourceKind { image, svg }
+enum GraphResourceKind { image, svg, mathGraph, materialGraph }
 
 class EnumChoiceOption {
   const EnumChoiceOption({

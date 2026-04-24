@@ -1,5 +1,7 @@
 import 'package:eyecandy/features/graph/models/graph_models.dart';
 import 'package:eyecandy/features/graph/models/graph_schema.dart';
+import 'package:eyecandy/features/math_graph/math_graph_catalog.dart';
+import 'package:eyecandy/features/math_graph/runtime/math_graph_compiler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vmath;
 
@@ -7,6 +9,7 @@ import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
 import 'package:eyecandy/features/material_graph/material_output_size.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_execution_ir.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
+import 'package:eyecandy/features/workspace/workspace_controller.dart';
 import 'package:eyecandy/shared/ids/id_factory.dart';
 
 void main() {
@@ -367,6 +370,81 @@ void main() {
     expect(radiusBinding.valueType, GraphValueType.float);
     expect(radiusBinding.value.floatValue, 0.72);
   });
+
+  test('compiler emits generated fragment programs for texel graph nodes', () {
+    final catalog = _buildCatalog();
+    final workspaceController = WorkspaceController.preview()
+      ..initializeForPreview()
+      ..createMathGraphAt(null)
+      ..updateActiveMathGraph(_buildScalarSampleMathGraph('amount'));
+    final mathGraphCompiler = MathGraphCompiler(catalog: MathGraphCatalog(IdFactory()));
+    final texelNode = _setWorkspaceResourceProperty(
+      catalog.instantiateNode(
+        definitionId: 'texel_graph_node',
+        position: vmath.Vector2.zero(),
+      ),
+      key: 'graph',
+      value: workspaceController.openedResource!.id,
+    );
+    final graph = GraphDocument(
+      id: 'texel-generated-graph',
+      name: 'Texel Generated',
+      nodes: [texelNode],
+      links: const [],
+    );
+
+    final compiled = MaterialGraphCompiler(
+      catalog: catalog,
+      workspaceController: workspaceController,
+      mathGraphCompiler: mathGraphCompiler,
+    ).compile(graph);
+    final texelPass = compiled.passForNode(texelNode.id)!;
+
+    expect(texelPass.program?.kind, MaterialCompiledProgramKind.generatedFragment);
+    expect(texelPass.textureInputs.map((input) => input.bindingKey), ['sampler_0']);
+    expect(
+      texelPass.parameterBindings.map((binding) => binding.bindingKey),
+      ['in_amount'],
+    );
+    expect(texelPass.program?.source, contains('vec4 outColor;'));
+    expect(texelPass.diagnostics, isEmpty);
+  });
+
+  test('compiler reports unsupported texel graph return types', () {
+    final catalog = _buildCatalog();
+    final workspaceController = WorkspaceController.preview()
+      ..initializeForPreview()
+      ..createMathGraphAt(null)
+      ..updateActiveMathGraph(_buildFloat2MathGraph());
+    final mathGraphCompiler = MathGraphCompiler(catalog: MathGraphCatalog(IdFactory()));
+    final texelNode = _setWorkspaceResourceProperty(
+      catalog.instantiateNode(
+        definitionId: 'texel_graph_node',
+        position: vmath.Vector2.zero(),
+      ),
+      key: 'graph',
+      value: workspaceController.openedResource!.id,
+    );
+    final graph = GraphDocument(
+      id: 'texel-invalid-graph',
+      name: 'Texel Invalid',
+      nodes: [texelNode],
+      links: const [],
+    );
+
+    final compiled = MaterialGraphCompiler(
+      catalog: catalog,
+      workspaceController: workspaceController,
+      mathGraphCompiler: mathGraphCompiler,
+    ).compile(graph);
+    final texelPass = compiled.passForNode(texelNode.id)!;
+
+    expect(texelPass.program, isNull);
+    expect(
+      texelPass.diagnostics.join('\n'),
+      contains('Texel Graph only supports math graphs returning float or float4.'),
+    );
+  });
 }
 
 MaterialGraphCatalog _buildCatalog() => MaterialGraphCatalog(IdFactory());
@@ -451,6 +529,93 @@ GraphNodeDocument _setFloatProperty(
               : property,
         )
         .toList(growable: false),
+  );
+}
+
+GraphNodeDocument _setWorkspaceResourceProperty(
+  GraphNodeDocument node, {
+  required String key,
+  required String value,
+}) {
+  return node.copyWith(
+    properties: node.properties
+        .map(
+          (property) => property.definitionKey == key
+              ? property.copyWith(value: GraphValueData.workspaceResource(value))
+              : property,
+        )
+        .toList(growable: false),
+  );
+}
+
+GraphDocument _buildScalarSampleMathGraph(String scalarIdentifier) {
+  final catalog = MathGraphCatalog(IdFactory());
+  final pos = catalog.instantiateNode(
+    definitionId: 'builtin_pos_node',
+    position: vmath.Vector2.zero(),
+  );
+  final sample = catalog.instantiateNode(
+    definitionId: 'sample_color_node',
+    position: vmath.Vector2(200, 0),
+  );
+  final amount = catalog.instantiateNode(
+    definitionId: 'get_float1_node',
+    position: vmath.Vector2(200, 180),
+  );
+  final multiply = catalog.instantiateNode(
+    definitionId: 'scalar_multiply_float4_node',
+    position: vmath.Vector2(420, 80),
+  );
+  final output = catalog.instantiateNode(
+    definitionId: 'output_float4_node',
+    position: vmath.Vector2(650, 80),
+  );
+  final configuredAmount = amount.copyWith(
+    properties: amount.properties
+        .map(
+          (property) => property.definitionKey == 'identifier'
+              ? property.copyWith(
+                  value: GraphValueData.stringValue(scalarIdentifier),
+                )
+              : property,
+        )
+        .toList(growable: false),
+  );
+  return GraphDocument(
+    id: 'math-sample-$scalarIdentifier',
+    name: 'Scalar Sample',
+    nodes: [pos, sample, configuredAmount, multiply, output],
+    links: [
+      _connect(fromNode: pos, fromKey: '_output', toNode: sample, toKey: 'uv'),
+      _connect(fromNode: sample, fromKey: '_output', toNode: multiply, toKey: 'a'),
+      _connect(
+        fromNode: configuredAmount,
+        fromKey: '_output',
+        toNode: multiply,
+        toKey: 'b',
+      ),
+      _connect(fromNode: multiply, fromKey: '_output', toNode: output, toKey: 'value'),
+    ],
+  );
+}
+
+GraphDocument _buildFloat2MathGraph() {
+  final catalog = MathGraphCatalog(IdFactory());
+  final pos = catalog.instantiateNode(
+    definitionId: 'builtin_pos_node',
+    position: vmath.Vector2.zero(),
+  );
+  final output = catalog.instantiateNode(
+    definitionId: 'output_float2_node',
+    position: vmath.Vector2(240, 0),
+  );
+  return GraphDocument(
+    id: 'math-float2',
+    name: 'Float2 Output',
+    nodes: [pos, output],
+    links: [
+      _connect(fromNode: pos, fromKey: '_output', toNode: output, toKey: 'value'),
+    ],
   );
 }
 

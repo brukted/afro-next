@@ -1432,6 +1432,8 @@ Set<WorkspaceResourceKind> _workspaceKindsForGraphKinds(
     return switch (kind) {
       GraphResourceKind.image => WorkspaceResourceKind.image,
       GraphResourceKind.svg => WorkspaceResourceKind.svg,
+      GraphResourceKind.mathGraph => WorkspaceResourceKind.mathGraph,
+      GraphResourceKind.materialGraph => WorkspaceResourceKind.materialGraph,
     };
   }).toSet();
 }

@@ -194,6 +194,7 @@ void main() {
     final image = catalog.definitionById('image_node');
     final svg = catalog.definitionById('svg_node');
     final text = catalog.definitionById('text_node');
+    final texelGraph = catalog.definitionById('texel_graph_node');
     final levels = catalog.definitionById('levels_node');
     final curve = catalog.definitionById('curve_node');
     final transform = catalog.definitionById('transform_node');
@@ -223,6 +224,12 @@ void main() {
     expect(
       text.propertyDefinition('content').valueType,
       GraphValueType.textBlock,
+    );
+
+    expect(texelGraph.runtime.shaderAssetId, isNull);
+    expect(
+      texelGraph.propertyDefinition('graph').resourceKinds,
+      [GraphResourceKind.mathGraph],
     );
 
     expect(levels.runtime.shaderAssetId, 'material/levels.frag');

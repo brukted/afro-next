@@ -7,6 +7,7 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/painting.dart' as painting;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart' as svg;
+import 'package:logging/logging.dart';
 import 'package:vector_math/vector_math.dart' show Vector4;
 // ignore: implementation_imports
 import 'package:vulkan/src/vulkan_header.dart';
@@ -26,6 +27,7 @@ import '../preview/preview_texture_registry.dart';
 import '../resources/preview_render_target.dart';
 import 'placeholder_renderer.dart';
 import 'renderer_facade.dart';
+import 'vulkan_generated_shader_compiler.dart';
 
 class VulkanPreviewRendererFacade implements RendererFacade {
   VulkanPreviewRendererFacade({
@@ -33,8 +35,12 @@ class VulkanPreviewRendererFacade implements RendererFacade {
     this.workspaceController,
     VulkanMaterialBackendPlanner planner = const VulkanMaterialBackendPlanner(),
     PreviewTextureRegistry? textureRegistry,
+    VulkanGeneratedShaderCompiler? generatedShaderCompiler,
   }) : _planner = planner,
        _textureRegistry = textureRegistry ?? PreviewTextureRegistry(),
+       _generatedShaderCompiler =
+           generatedShaderCompiler ??
+           ExternalProcessVulkanGeneratedShaderCompiler(),
        _fallback = PlaceholderVulkanRendererFacade(
          bootstrapper: bootstrapper,
          planner: planner,
@@ -44,6 +50,7 @@ class VulkanPreviewRendererFacade implements RendererFacade {
   final WorkspaceController? workspaceController;
   final VulkanMaterialBackendPlanner _planner;
   final PreviewTextureRegistry _textureRegistry;
+  final VulkanGeneratedShaderCompiler _generatedShaderCompiler;
   final PlaceholderVulkanRendererFacade _fallback;
 
   _VulkanMaterialExecutor? _executor;
@@ -66,6 +73,7 @@ class VulkanPreviewRendererFacade implements RendererFacade {
           _VulkanMaterialExecutor(
             textureRegistry: _textureRegistry,
             workspaceController: workspaceController,
+            generatedShaderCompiler: _generatedShaderCompiler,
           );
       await executor.initialize();
       _executor = executor;
@@ -170,6 +178,7 @@ class VulkanPreviewRendererFacade implements RendererFacade {
     _graphWorkByGraphId.clear();
     await _executor?.dispose();
     _executor = null;
+    await _generatedShaderCompiler.dispose();
     await _fallback.dispose();
     _disposed = true;
     _isDisposing = false;
@@ -209,12 +218,16 @@ class VulkanPreviewRendererFacade implements RendererFacade {
 class _VulkanMaterialExecutor {
   _VulkanMaterialExecutor({
     required PreviewTextureRegistry textureRegistry,
+    required VulkanGeneratedShaderCompiler generatedShaderCompiler,
     WorkspaceController? workspaceController,
   }) : _textureRegistry = textureRegistry,
+       _generatedShaderCompiler = generatedShaderCompiler,
        _workspaceController = workspaceController;
 
   final PreviewTextureRegistry _textureRegistry;
+  final VulkanGeneratedShaderCompiler _generatedShaderCompiler;
   final WorkspaceController? _workspaceController;
+  static final Logger _logger = Logger('eyecandy.preview.vulkan');
 
   late final VulkanRuntimeBindings _vk;
   Pointer<VkInstance> _instance = nullptr;
@@ -306,8 +319,9 @@ class _VulkanMaterialExecutor {
           kind: PreviewRenderTargetKind.placeholder,
           label: 'Unsupported preview',
           diagnostics: <String>[
-            'Shader: ${passPlan.shader?.assetId ?? 'Unassigned'}',
+            'Shader: ${passPlan.shader?.displayLabel ?? 'Unassigned'}',
             'Stage: ${passPlan.shader?.stage.name ?? 'unsupported'}',
+            ...compiledPass?.diagnostics ?? const <String>[],
             'Revision: $revision',
           ],
           status: PreviewRenderStatus.unsupported,
@@ -332,7 +346,7 @@ class _VulkanMaterialExecutor {
                 kind: PreviewRenderTargetKind.placeholder,
                 label: 'Texture bridge unavailable',
                 diagnostics: <String>[
-                  'Shader: ${compiledPass.shaderAssetId ?? 'Unassigned'}',
+                  'Shader: ${compiledPass.program?.cacheKey ?? 'Unassigned'}',
                   'Revision: $revision',
                 ],
                 status: PreviewRenderStatus.failed,
@@ -342,7 +356,7 @@ class _VulkanMaterialExecutor {
                 kind: PreviewRenderTargetKind.externalTexture,
                 label: 'Live preview',
                 diagnostics: <String>[
-                  'Shader: ${compiledPass.shaderAssetId ?? 'Unassigned'}',
+                  'Shader: ${compiledPass.program?.cacheKey ?? 'Unassigned'}',
                   'Extent: ${descriptor.width}x${descriptor.height}',
                   'Revision: $revision',
                 ],
@@ -351,12 +365,27 @@ class _VulkanMaterialExecutor {
               );
         _previewTargetsByKey[nodeKey] = target;
         results[passPlan.nodeId] = target;
-      } catch (error) {
+      } catch (error, stackTrace) {
+        _logger.severe(
+          'Preview render failed for node `${passPlan.nodeId}` '
+          'shader=`${passPlan.shader?.displayLabel ?? 'Unassigned'}`.',
+          error,
+          stackTrace,
+        );
+        final diagnostics = switch (error) {
+          VulkanGeneratedShaderCompileException(:final diagnostics) =>
+            diagnostics,
+          _ => <String>['$error'],
+        };
         final errorTarget = PreviewRenderTarget(
           id: passPlan.outputTarget.id,
           kind: PreviewRenderTargetKind.error,
           label: 'Preview failed',
-          diagnostics: <String>['$error', 'Revision: $revision'],
+          diagnostics: <String>[
+            'Shader: ${passPlan.shader?.displayLabel ?? 'Unassigned'}',
+            ...diagnostics,
+            'Revision: $revision',
+          ],
           status: PreviewRenderStatus.failed,
         );
         _previewTargetsByKey[nodeKey] = errorTarget;
@@ -408,9 +437,11 @@ class _VulkanMaterialExecutor {
     required MaterialCompiledGraph graph,
     required MaterialCompiledNodePass pass,
   }) async {
-    final fragmentShader = await _loadShaderBytes(
-      _compiledShaderAssetPath(pass.shaderAssetId!),
-    );
+    final program = pass.program;
+    if (program == null) {
+      throw UnsupportedError('Material pass has no compiled fragment program.');
+    }
+    final fragmentShader = await _loadFragmentShaderBytes(program);
     final vertexShader = await _loadShaderBytes(
       'assets/shaders/spirv/material/fullscreen_triangle.vert.spv',
     );
@@ -460,6 +491,24 @@ class _VulkanMaterialExecutor {
       width: pass.resolvedOutputSize.width,
       height: pass.resolvedOutputSize.height,
     );
+  }
+
+  Future<Uint8List> _loadFragmentShaderBytes(
+    MaterialCompiledProgram program,
+  ) async {
+    return switch (program.kind) {
+      MaterialCompiledProgramKind.asset when program.assetId != null =>
+        _loadShaderBytes(_compiledShaderAssetPath(program.assetId!)),
+      MaterialCompiledProgramKind.generatedFragment
+          when program.source != null =>
+        _generatedShaderCompiler.compileFragmentShader(
+          source: program.source!,
+          cacheKey: program.cacheKey,
+        ),
+      _ => throw UnsupportedError(
+        'Unsupported fragment program kind: ${program.kind}.',
+      ),
+    };
   }
 
   Uint8List _defaultTextureBytes(GraphValueData value) {

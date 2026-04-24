@@ -10,10 +10,14 @@ import '../../vulkan/resources/preview_render_target.dart';
 import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
+import '../math_graph/math_graph_catalog.dart';
+import '../math_graph/runtime/math_graph_compiler.dart';
+import '../workspace/workspace_controller.dart';
 import 'material_graph_catalog.dart';
 import 'material_node_definition.dart';
 import 'material_output_size.dart';
 import 'material_socket_compatibility.dart';
+import 'runtime/material_graph_backed_resolver.dart';
 import 'runtime/material_graph_compiler.dart';
 import 'runtime/material_execution_ir.dart';
 import 'runtime/material_graph_runtime.dart';
@@ -30,25 +34,65 @@ class PendingSocketConnection {
   final GraphSocketDirection direction;
 }
 
+class _GraphSynchronizationResult {
+  const _GraphSynchronizationResult({
+    required this.graph,
+    required this.changed,
+  });
+
+  final GraphDocument graph;
+  final bool changed;
+}
+
+class _NodeSynchronizationResult {
+  const _NodeSynchronizationResult({
+    required this.node,
+    required this.changed,
+    required this.removedPropertyIds,
+  });
+
+  final GraphNodeDocument node;
+  final bool changed;
+  final Set<String> removedPropertyIds;
+}
+
 class MaterialGraphController extends ChangeNotifier {
   MaterialGraphController({
     required IdFactory idFactory,
     required MaterialGraphCatalog catalog,
     required MaterialGraphRuntime runtime,
+    WorkspaceController? workspaceController,
+    MathGraphCompiler? mathGraphCompiler,
   }) : _idFactory = idFactory,
        _catalog = catalog,
-       _runtime = runtime {
+       _runtime = runtime,
+       _resolver = MaterialGraphBackedNodeResolver(
+         catalog: catalog,
+         workspaceController: workspaceController,
+         mathGraphCompiler: mathGraphCompiler,
+       ) {
     _runtime.addListener(_handleRuntimeChanged);
   }
 
   factory MaterialGraphController.preview() {
     final idFactory = IdFactory();
     final catalog = MaterialGraphCatalog(idFactory);
+    final workspaceController = WorkspaceController.preview()
+      ..initializeForPreview();
+    final mathGraphCompiler = MathGraphCompiler(
+      catalog: MathGraphCatalog(IdFactory()),
+    );
     return MaterialGraphController(
       idFactory: idFactory,
       catalog: catalog,
+      workspaceController: workspaceController,
+      mathGraphCompiler: mathGraphCompiler,
       runtime: MaterialGraphRuntime(
-        compiler: MaterialGraphCompiler(catalog: catalog),
+        compiler: MaterialGraphCompiler(
+          catalog: catalog,
+          workspaceController: workspaceController,
+          mathGraphCompiler: mathGraphCompiler,
+        ),
         renderer: const PreviewOnlyRendererFacade(),
       ),
     );
@@ -57,6 +101,7 @@ class MaterialGraphController extends ChangeNotifier {
   final IdFactory _idFactory;
   final MaterialGraphCatalog _catalog;
   final MaterialGraphRuntime _runtime;
+  final MaterialGraphBackedNodeResolver _resolver;
 
   GraphDocument? _graph;
   ValueChanged<GraphDocument>? _onGraphChanged;
@@ -206,7 +251,8 @@ class MaterialGraphController extends ChangeNotifier {
     ValueChanged<MaterialOutputSizeSettings>? onGraphOutputSizeSettingsChanged,
   }) {
     final graphChanged = _graph?.id != graph.id;
-    _graph = graph;
+    final synchronized = _synchronizeGraphBackedNodes(graph);
+    _graph = synchronized.graph;
     _onGraphChanged = onChanged;
     _graphOutputSizeSettings = graphOutputSizeSettings;
     _onGraphOutputSizeSettingsChanged = onGraphOutputSizeSettingsChanged;
@@ -214,8 +260,11 @@ class MaterialGraphController extends ChangeNotifier {
       _selectedNodeId = null;
       _pendingConnection = null;
     }
+    if (synchronized.changed) {
+      onChanged(synchronized.graph);
+    }
     _runtime.bindGraph(
-      graph,
+      synchronized.graph,
       graphOutputSizeSettings: _graphOutputSizeSettings,
       sessionParentOutputSize: _sessionParentOutputSize,
     );
@@ -407,7 +456,11 @@ class MaterialGraphController extends ChangeNotifier {
     _commitGraph(
       graph.copyWith(
         nodes: graph.nodes
-            .map((entry) => entry.id == nodeId ? entry.copyWith(name: trimmedName) : entry)
+            .map(
+              (entry) => entry.id == nodeId
+                  ? entry.copyWith(name: trimmedName)
+                  : entry,
+            )
             .toList(growable: false),
       ),
       refreshPreviews: false,
@@ -577,8 +630,12 @@ class MaterialGraphController extends ChangeNotifier {
     if (property == null) {
       return;
     }
-    final propertyDefinition = nodeDefinition.propertyDefinition(property.definitionKey);
-    final inputDefinitionId = _catalog.inputDefinitionIdForProperty(propertyDefinition);
+    final propertyDefinition = nodeDefinition.propertyDefinition(
+      property.definitionKey,
+    );
+    final inputDefinitionId = _catalog.inputDefinitionIdForProperty(
+      propertyDefinition,
+    );
     if (inputDefinitionId == null ||
         propertyDefinition.propertyType != GraphPropertyType.input ||
         !propertyDefinition.isSocket) {
@@ -595,7 +652,9 @@ class MaterialGraphController extends ChangeNotifier {
       sequence: matchingNodeCount + 1,
     );
     final inputValueKey = inputDefinition.inputValuePropertyKey;
-    final nextName = _nextAvailableNodeName('${propertyDefinition.label} Input');
+    final nextName = _nextAvailableNodeName(
+      '${propertyDefinition.label} Input',
+    );
     inputNode = inputNode.copyWith(
       name: nextName,
       inputUnitId: propertyDefinition.valueUnit.name,
@@ -624,18 +683,19 @@ class MaterialGraphController extends ChangeNotifier {
       return;
     }
 
-    final nextLinks = graph.links
-        .where((link) => link.toPropertyId != propertyId)
-        .toList(growable: true)
-      ..add(
-        GraphLinkDocument(
-          id: _idFactory.next(),
-          fromNodeId: inputNode.id,
-          fromPropertyId: outputProperty.id,
-          toNodeId: node.id,
-          toPropertyId: property.id,
-        ),
-      );
+    final nextLinks =
+        graph.links
+            .where((link) => link.toPropertyId != propertyId)
+            .toList(growable: true)
+          ..add(
+            GraphLinkDocument(
+              id: _idFactory.next(),
+              fromNodeId: inputNode.id,
+              fromPropertyId: outputProperty.id,
+              toNodeId: node.id,
+              toPropertyId: property.id,
+            ),
+          );
 
     _selectedNodeId = inputNode.id;
     _pendingConnection = null;
@@ -861,16 +921,22 @@ class MaterialGraphController extends ChangeNotifier {
   }
 
   MaterialNodeDefinition definitionForNode(GraphNodeDocument node) {
-    return _catalog.definitionById(node.definitionId);
+    return _resolver.resolveNode(node).definition;
   }
 
   List<GraphPropertyBinding> boundPropertiesForNode(GraphNodeDocument node) {
     final definition = definitionForNode(node);
     return definition.properties
         .map((propertyDefinition) {
-          final property = node.properties.firstWhere(
-            (entry) => entry.definitionKey == propertyDefinition.key,
-          );
+          final property =
+              node.properties.firstWhereOrNull(
+                (entry) => entry.definitionKey == propertyDefinition.key,
+              ) ??
+              GraphNodePropertyData(
+                id: '${node.id}:${propertyDefinition.key}',
+                definitionKey: propertyDefinition.key,
+                value: _catalog.defaultValueForProperty(propertyDefinition),
+              );
           return GraphPropertyBinding(
             property: property,
             definition: propertyDefinition,
@@ -1042,7 +1108,9 @@ class MaterialGraphController extends ChangeNotifier {
     if (!fromNodeDefinition.isGraphInput || sourceValueKey == null) {
       return false;
     }
-    final sourceValueProperty = fromNode.propertyByDefinitionKey(sourceValueKey);
+    final sourceValueProperty = fromNode.propertyByDefinitionKey(
+      sourceValueKey,
+    );
     return sourceValueProperty?.value.valueType == toDefinition.valueType;
   }
 
@@ -1052,6 +1120,10 @@ class MaterialGraphController extends ChangeNotifier {
     required GraphValueData value,
   }) {
     final node = graph.nodes.firstWhere((entry) => entry.id == nodeId);
+    final changedProperty = node.propertyById(propertyId);
+    if (changedProperty == null) {
+      return;
+    }
     final updatedProperties = node.properties
         .map(
           (property) => property.id == propertyId
@@ -1059,19 +1131,22 @@ class MaterialGraphController extends ChangeNotifier {
               : property,
         )
         .toList(growable: false);
-
-    _commitGraph(
-      graph.copyWith(
-        nodes: graph.nodes
-            .map(
-              (entry) => entry.id == nodeId
-                  ? entry.copyWith(properties: updatedProperties)
-                  : entry,
-            )
-            .toList(growable: false),
-      ),
-      dirtyRootNodeIds: [nodeId],
+    final updatedGraph = graph.copyWith(
+      nodes: graph.nodes
+          .map(
+            (entry) => entry.id == nodeId
+                ? entry.copyWith(properties: updatedProperties)
+                : entry,
+          )
+          .toList(growable: false),
     );
+    final synchronized =
+        _isTexelGraphNode(node) &&
+            changedProperty.definitionKey ==
+                materialTexelGraphResourcePropertyKey
+        ? _synchronizeGraphBackedNodes(updatedGraph)
+        : _GraphSynchronizationResult(graph: updatedGraph, changed: false);
+    _commitGraph(synchronized.graph, dirtyRootNodeIds: [nodeId]);
   }
 
   void _updateNodeOutputSizeSettings({
@@ -1174,7 +1249,106 @@ class MaterialGraphController extends ChangeNotifier {
     notifyListeners();
   }
 
+  _GraphSynchronizationResult _synchronizeGraphBackedNodes(
+    GraphDocument source,
+  ) {
+    var changed = false;
+    var nodes = source.nodes.toList(growable: false);
+    var links = source.links.toList(growable: false);
+    for (final node in source.nodes) {
+      if (!_isTexelGraphNode(node)) {
+        continue;
+      }
+      final synchronizedNode = _synchronizeNodeProperties(
+        node,
+        definitionForNode(node).properties,
+      );
+      if (!synchronizedNode.changed) {
+        continue;
+      }
+      changed = true;
+      nodes = nodes
+          .map((entry) => entry.id == node.id ? synchronizedNode.node : entry)
+          .toList(growable: false);
+      if (synchronizedNode.removedPropertyIds.isNotEmpty) {
+        links = links
+            .where(
+              (link) =>
+                  !synchronizedNode.removedPropertyIds.contains(
+                    link.fromPropertyId,
+                  ) &&
+                  !synchronizedNode.removedPropertyIds.contains(
+                    link.toPropertyId,
+                  ),
+            )
+            .toList(growable: false);
+      }
+    }
+    if (!changed) {
+      return _GraphSynchronizationResult(graph: source, changed: false);
+    }
+    return _GraphSynchronizationResult(
+      graph: source.copyWith(nodes: nodes, links: links),
+      changed: true,
+    );
+  }
+
+  _NodeSynchronizationResult _synchronizeNodeProperties(
+    GraphNodeDocument node,
+    List<GraphPropertyDefinition> definitions,
+  ) {
+    final existingByKey = {
+      for (final property in node.properties) property.definitionKey: property,
+    };
+    final nextProperties = <GraphNodePropertyData>[];
+    final removedPropertyIds = <String>{
+      for (final property in node.properties) property.id,
+    };
+    var changed = false;
+    for (final definition in definitions) {
+      final existing = existingByKey[definition.key];
+      if (existing != null &&
+          existing.value.valueType == definition.valueType) {
+        nextProperties.add(existing);
+        removedPropertyIds.remove(existing.id);
+        continue;
+      }
+      changed = true;
+      nextProperties.add(
+        GraphNodePropertyData(
+          id: _idFactory.next(),
+          definitionKey: definition.key,
+          value: _catalog.defaultValueForProperty(definition),
+        ),
+      );
+      if (existing != null) {
+        removedPropertyIds.add(existing.id);
+      }
+    }
+
+    if (!changed && nextProperties.length == node.properties.length) {
+      for (var index = 0; index < nextProperties.length; index += 1) {
+        if (nextProperties[index].id != node.properties[index].id) {
+          changed = true;
+          break;
+        }
+      }
+    } else if (nextProperties.length != node.properties.length) {
+      changed = true;
+    }
+
+    return _NodeSynchronizationResult(
+      node: changed ? node.copyWith(properties: nextProperties) : node,
+      changed: changed,
+      removedPropertyIds: removedPropertyIds,
+    );
+  }
+
   void _handleRuntimeChanged() {
     notifyListeners();
+  }
+
+  bool _isTexelGraphNode(GraphNodeDocument node) {
+    return node.definitionId == materialTexelGraphNodeDefinitionId;
   }
 }

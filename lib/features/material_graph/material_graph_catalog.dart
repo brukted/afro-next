@@ -7,6 +7,9 @@ import '../graph/models/graph_schema.dart';
 import 'material_node_definition.dart';
 import 'material_output_size.dart';
 
+const String materialTexelGraphNodeDefinitionId = 'texel_graph_node';
+const String materialTexelGraphResourcePropertyKey = 'graph';
+
 class MaterialGraphCatalog {
   MaterialGraphCatalog(this._idFactory);
 
@@ -437,6 +440,31 @@ class MaterialGraphCatalog {
       runtime: const MaterialNodeRuntimeDefinition.fragment(
         shaderAssetId: 'material/image-basic.frag',
       ),
+    ),
+    MaterialNodeDefinition(
+      schema: GraphNodeSchema(
+        id: materialTexelGraphNodeDefinitionId,
+        label: 'Texel Graph',
+        description:
+            'Runs a referenced math graph per pixel and exposes its parameters as node inputs.',
+        properties: [
+          GraphPropertyDefinition(
+            key: materialTexelGraphResourcePropertyKey,
+            label: 'Math Graph',
+            description: 'Select a workspace math graph to run per pixel.',
+            propertyType: GraphPropertyType.descriptor,
+            socket: false,
+            valueType: GraphValueType.workspaceResource,
+            valueUnit: GraphValueUnit.path,
+            defaultValue: '',
+            resourceKinds: const [GraphResourceKind.mathGraph],
+          ),
+          _outputColorProperty(),
+        ],
+      ),
+      icon: Icons.auto_awesome_motion_outlined,
+      accentColor: _color('#8D9CFF'),
+      runtime: const MaterialNodeRuntimeDefinition.fragment(shaderAssetId: null),
     ),
     MaterialNodeDefinition(
       schema: GraphNodeSchema(

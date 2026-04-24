@@ -46,20 +46,28 @@ void main() {
 
     expect(_panelText('Pick'), findsNWidgets(2));
 
-    await tester.tap(_panelText('Pick').first);
-    await tester.pumpAndSettle();
+    final pickButton = _panelText('Pick').first;
+    await tester.ensureVisible(pickButton);
+    await tester.tap(pickButton);
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.text('Pick color'), findsOneWidget);
     expect(find.text('Cancel'), findsOneWidget);
   });
 
-  testWidgets('curve demo node exposes the bezier curve editor', (
+  testWidgets('curve node exposes the bezier curve editor', (
     tester,
   ) async {
     final catalog = _buildCatalog();
-    final graph = catalog.createStarterGraph(name: 'Test');
-    final curveNode = graph.nodes.firstWhere(
-      (node) => node.definitionId == 'curve_demo_node',
+    final curveNode = catalog.instantiateNode(
+      definitionId: 'curve_node',
+      position: Vector2.zero(),
+    );
+    final graph = GraphDocument(
+      id: 'curve-graph',
+      name: 'Curve',
+      nodes: [curveNode],
+      links: const [],
     );
     final controller = _createBoundController(graph);
 

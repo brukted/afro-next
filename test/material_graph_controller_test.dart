@@ -1,9 +1,12 @@
 import 'package:eyecandy/features/graph/models/graph_models.dart';
 import 'package:eyecandy/features/graph/models/graph_schema.dart';
+import 'package:eyecandy/features/math_graph/math_graph_catalog.dart';
+import 'package:eyecandy/features/math_graph/runtime/math_graph_compiler.dart';
 import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
 import 'package:eyecandy/features/material_graph/material_graph_controller.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_graph_runtime.dart';
+import 'package:eyecandy/features/workspace/workspace_controller.dart';
 import 'package:eyecandy/shared/ids/id_factory.dart';
 import 'package:eyecandy/vulkan/renderer/placeholder_renderer.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -151,6 +154,62 @@ void main() {
     );
     expect(controller.selectedNodeId, isNull);
   });
+
+  test('bindGraph expands texel graph inputs from the referenced math graph', () {
+    final harness = _buildTexelHarness(mathGraph: _buildScalarSampleMathGraph('amount'));
+    addTearDown(harness.controller.dispose);
+    final texelNode = harness.controller.graph.nodes.single;
+
+    final propertyKeys = harness.controller
+        .boundPropertiesForNode(texelNode)
+        .map((binding) => binding.definition.key)
+        .toList(growable: false);
+
+    expect(propertyKeys, containsAll(<String>['graph', 'in_amount', 'sampler_0', '_output']));
+  });
+
+  test('rebind removes stale texel graph properties and links after signature changes', () {
+    final harness = _buildTexelHarness(mathGraph: _buildScalarSampleMathGraph('amount'));
+    addTearDown(harness.controller.dispose);
+    final texelNode = harness.controller.graph.nodes.single;
+    final amountPropertyId = harness.controller
+        .nodeById(texelNode.id)!
+        .propertyByDefinitionKey('in_amount')!
+        .id;
+
+    harness.controller.exposePropertyAsInput(
+      nodeId: texelNode.id,
+      propertyId: amountPropertyId,
+    );
+    expect(harness.controller.graph.links, isNotEmpty);
+
+    harness.workspaceController.updateActiveMathGraph(
+      _buildColorSampleMathGraph(),
+    );
+    harness.controller.bindGraph(graph: harness.controller.graph, onChanged: (_) {});
+
+    final reboundTexel = harness.controller.graph.nodes.firstWhere(
+      (node) => node.id == texelNode.id,
+    );
+    expect(reboundTexel.propertyByDefinitionKey('in_amount'), isNull);
+    expect(reboundTexel.propertyByDefinitionKey('sampler_0'), isNotNull);
+    expect(
+      harness.controller.graph.links.any(
+        (link) => link.toPropertyId == amountPropertyId,
+      ),
+      isFalse,
+    );
+  });
+}
+
+class _TexelHarness {
+  const _TexelHarness({
+    required this.controller,
+    required this.workspaceController,
+  });
+
+  final MaterialGraphController controller;
+  final WorkspaceController workspaceController;
 }
 
 MaterialGraphController _buildSingleNodeController({
@@ -190,4 +249,149 @@ MaterialGraphController _buildController() {
     onChanged: (_) {},
   );
   return controller;
+}
+
+_TexelHarness _buildTexelHarness({required GraphDocument mathGraph}) {
+  final idFactory = IdFactory();
+  final materialCatalog = MaterialGraphCatalog(idFactory);
+  final workspaceController = WorkspaceController.preview()
+    ..initializeForPreview()
+    ..createMathGraphAt(null)
+    ..updateActiveMathGraph(mathGraph);
+  final mathGraphCompiler = MathGraphCompiler(catalog: MathGraphCatalog(IdFactory()));
+  final controller = MaterialGraphController(
+    idFactory: idFactory,
+    catalog: materialCatalog,
+    workspaceController: workspaceController,
+    mathGraphCompiler: mathGraphCompiler,
+    runtime: MaterialGraphRuntime(
+      compiler: MaterialGraphCompiler(
+        catalog: materialCatalog,
+        workspaceController: workspaceController,
+        mathGraphCompiler: mathGraphCompiler,
+      ),
+      renderer: const PreviewOnlyRendererFacade(),
+    ),
+  );
+  final texelNode = materialCatalog.instantiateNode(
+    definitionId: 'texel_graph_node',
+    position: vmath.Vector2.zero(),
+  );
+  final resourceId = workspaceController.openedResource!.id;
+  final configuredNode = texelNode.copyWith(
+    properties: texelNode.properties
+        .map(
+          (property) => property.definitionKey == 'graph'
+              ? property.copyWith(
+                  value: GraphValueData.workspaceResource(resourceId),
+                )
+              : property,
+        )
+        .toList(growable: false),
+  );
+  controller.bindGraph(
+    graph: GraphDocument(
+      id: 'texel-graph',
+      name: 'Texel Graph',
+      nodes: [configuredNode],
+      links: const [],
+    ),
+    onChanged: (_) {},
+  );
+  return _TexelHarness(
+    controller: controller,
+    workspaceController: workspaceController,
+  );
+}
+
+GraphDocument _buildScalarSampleMathGraph(String scalarIdentifier) {
+  final catalog = MathGraphCatalog(IdFactory());
+  final pos = catalog.instantiateNode(
+    definitionId: 'builtin_pos_node',
+    position: vmath.Vector2.zero(),
+  );
+  final sample = catalog.instantiateNode(
+    definitionId: 'sample_color_node',
+    position: vmath.Vector2(200, 0),
+  );
+  final amount = catalog.instantiateNode(
+    definitionId: 'get_float1_node',
+    position: vmath.Vector2(200, 180),
+  );
+  final multiply = catalog.instantiateNode(
+    definitionId: 'scalar_multiply_float4_node',
+    position: vmath.Vector2(420, 80),
+  );
+  final output = catalog.instantiateNode(
+    definitionId: 'output_float4_node',
+    position: vmath.Vector2(650, 80),
+  );
+  final amountProperty = amount.propertyByDefinitionKey('identifier')!;
+  final configuredAmount = amount.copyWith(
+    properties: amount.properties
+        .map(
+          (property) => property.id == amountProperty.id
+              ? property.copyWith(
+                  value: GraphValueData.stringValue(scalarIdentifier),
+                )
+              : property,
+        )
+        .toList(growable: false),
+  );
+  return GraphDocument(
+    id: 'math-sample-$scalarIdentifier',
+    name: 'Scalar Sample',
+    nodes: [pos, sample, configuredAmount, multiply, output],
+    links: [
+      _connect(fromNode: pos, fromKey: '_output', toNode: sample, toKey: 'uv'),
+      _connect(fromNode: sample, fromKey: '_output', toNode: multiply, toKey: 'a'),
+      _connect(
+        fromNode: configuredAmount,
+        fromKey: '_output',
+        toNode: multiply,
+        toKey: 'b',
+      ),
+      _connect(fromNode: multiply, fromKey: '_output', toNode: output, toKey: 'value'),
+    ],
+  );
+}
+
+GraphDocument _buildColorSampleMathGraph() {
+  final catalog = MathGraphCatalog(IdFactory());
+  final pos = catalog.instantiateNode(
+    definitionId: 'builtin_pos_node',
+    position: vmath.Vector2.zero(),
+  );
+  final sample = catalog.instantiateNode(
+    definitionId: 'sample_color_node',
+    position: vmath.Vector2(220, 0),
+  );
+  final output = catalog.instantiateNode(
+    definitionId: 'output_float4_node',
+    position: vmath.Vector2(420, 0),
+  );
+  return GraphDocument(
+    id: 'math-color-sample',
+    name: 'Color Sample',
+    nodes: [pos, sample, output],
+    links: [
+      _connect(fromNode: pos, fromKey: '_output', toNode: sample, toKey: 'uv'),
+      _connect(fromNode: sample, fromKey: '_output', toNode: output, toKey: 'value'),
+    ],
+  );
+}
+
+GraphLinkDocument _connect({
+  required GraphNodeDocument fromNode,
+  required String fromKey,
+  required GraphNodeDocument toNode,
+  required String toKey,
+}) {
+  return GraphLinkDocument(
+    id: '${fromNode.id}:$fromKey->$toKey',
+    fromNodeId: fromNode.id,
+    fromPropertyId: fromNode.propertyByDefinitionKey(fromKey)!.id,
+    toNodeId: toNode.id,
+    toPropertyId: toNode.propertyByDefinitionKey(toKey)!.id,
+  );
 }

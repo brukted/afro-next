@@ -2,17 +2,29 @@ import 'package:collection/collection.dart';
 
 import '../../graph/models/graph_models.dart';
 import '../../graph/models/graph_schema.dart';
+import '../../math_graph/runtime/math_graph_compiler.dart';
+import '../../workspace/workspace_controller.dart';
 import '../material_graph_catalog.dart';
 import '../material_node_definition.dart';
 import '../material_output_size.dart';
 import '../material_socket_compatibility.dart';
+import 'material_graph_backed_resolver.dart';
 import 'material_execution_ir.dart';
 
 class MaterialGraphCompiler {
-  const MaterialGraphCompiler({required MaterialGraphCatalog catalog})
-    : _catalog = catalog;
+  MaterialGraphCompiler({
+    required MaterialGraphCatalog catalog,
+    WorkspaceController? workspaceController,
+    MathGraphCompiler? mathGraphCompiler,
+  }) : _catalog = catalog,
+       _resolver = MaterialGraphBackedNodeResolver(
+         catalog: catalog,
+         workspaceController: workspaceController,
+         mathGraphCompiler: mathGraphCompiler,
+       );
 
   final MaterialGraphCatalog _catalog;
+  final MaterialGraphBackedNodeResolver _resolver;
 
   MaterialCompiledGraph compile(
     GraphDocument graph, {
@@ -110,7 +122,8 @@ class MaterialGraphCompiler {
     required Map<String, MaterialResolvedOutputSize>
     resolvedOutputSizesByNodeId,
   }) {
-    final definition = _catalog.definitionById(node.definitionId);
+    final resolution = _resolver.resolveNode(node);
+    final definition = resolution.definition;
     final textureInputs = <MaterialCompiledTextureInput>[];
     final parameterBindings = <MaterialCompiledParameterBinding>[];
     GraphPropertyDefinition? outputDefinition;
@@ -128,9 +141,7 @@ class MaterialGraphCompiler {
       final outputDefinition = definition.properties.firstWhere(
         (property) => property.propertyType == GraphPropertyType.output,
       );
-      final outputProperty = node.propertyByDefinitionKey(
-        outputDefinition.key,
-      )!;
+      final outputProperty = _propertyForDefinition(node, outputDefinition);
       final graphInputTexture = _compileGraphInputTextureInput(
         node: node,
         definition: definition,
@@ -143,7 +154,10 @@ class MaterialGraphCompiler {
         nodeName: node.name,
         definitionId: definition.id,
         executionKind: definition.runtime.executionKind,
-        shaderAssetId: definition.runtime.shaderAssetId,
+        program: _programForDefinition(
+          definition,
+          generatedProgram: resolution.program,
+        ),
         textureInputs: textureInputs,
         parameterBindings: parameterBindings,
         output: MaterialCompiledOutputBinding(
@@ -155,14 +169,12 @@ class MaterialGraphCompiler {
         ),
         upstreamNodeIds: const <String>[],
         resolvedOutputSize: resolvedOutputSize,
+        diagnostics: resolution.diagnostics,
       );
     }
 
     for (final propertyDefinition in definition.properties) {
-      final property = node.propertyByDefinitionKey(propertyDefinition.key);
-      if (property == null) {
-        continue;
-      }
+      final property = _propertyForDefinition(node, propertyDefinition);
 
       if (propertyDefinition.propertyType == GraphPropertyType.output) {
         outputDefinition ??= propertyDefinition;
@@ -225,6 +237,10 @@ class MaterialGraphCompiler {
       if (_isBaseOutputSizeProperty(propertyDefinition.key)) {
         continue;
       }
+      if (definition.id == materialTexelGraphNodeDefinitionId &&
+          propertyDefinition.key == materialTexelGraphResourcePropertyKey) {
+        continue;
+      }
 
       parameterBindings.add(
         MaterialCompiledParameterBinding(
@@ -244,14 +260,17 @@ class MaterialGraphCompiler {
         });
     final resolvedOutputProperty =
         outputProperty ??
-        node.propertyByDefinitionKey(resolvedOutputDefinition.key)!;
+        _propertyForDefinition(node, resolvedOutputDefinition);
 
     return MaterialCompiledNodePass(
       nodeId: node.id,
       nodeName: node.name,
       definitionId: definition.id,
       executionKind: definition.runtime.executionKind,
-      shaderAssetId: definition.runtime.shaderAssetId,
+      program: _programForDefinition(
+        definition,
+        generatedProgram: resolution.program,
+      ),
       textureInputs: textureInputs,
       parameterBindings: parameterBindings,
       output: MaterialCompiledOutputBinding(
@@ -263,7 +282,34 @@ class MaterialGraphCompiler {
       ),
       upstreamNodeIds: upstreamNodeIds.toList(growable: false),
       resolvedOutputSize: resolvedOutputSize,
+      diagnostics: resolution.diagnostics,
     );
+  }
+
+  MaterialCompiledProgram? _programForDefinition(
+    MaterialNodeDefinition definition, {
+    MaterialCompiledProgram? generatedProgram,
+  }) {
+    if (generatedProgram != null) {
+      return generatedProgram;
+    }
+    final shaderAssetId = definition.runtime.shaderAssetId;
+    if (shaderAssetId == null || shaderAssetId.isEmpty) {
+      return null;
+    }
+    return MaterialCompiledProgram.asset(assetId: shaderAssetId);
+  }
+
+  GraphNodePropertyData _propertyForDefinition(
+    GraphNodeDocument node,
+    GraphPropertyDefinition definition,
+  ) {
+    return node.propertyByDefinitionKey(definition.key) ??
+        GraphNodePropertyData(
+          id: '${node.id}:${definition.key}',
+          definitionKey: definition.key,
+          value: _catalog.defaultValueForProperty(definition),
+        );
   }
 
   MaterialCompiledTextureInput? _compileGraphInputTextureInput({

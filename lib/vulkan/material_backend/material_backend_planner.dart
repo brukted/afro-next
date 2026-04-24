@@ -26,19 +26,31 @@ class VulkanMaterialBackendPlanner {
     required MaterialCompiledNodePass pass,
   }) {
     final previewSupport = MaterialNodePreviewSupportRegistry.lookup(pass);
-    final isSupported = previewSupport != null;
+    final isSupported =
+        previewSupport != null && pass.program != null && pass.diagnostics.isEmpty;
     final outputUsage = pass.nodeId == graph.defaultOutputNodeId
         ? VulkanImageTargetUsage.finalOutput
         : VulkanImageTargetUsage.preview;
+    final shader = switch (pass.program?.kind) {
+      MaterialCompiledProgramKind.asset when pass.program?.assetId != null =>
+        VulkanShaderAsset.asset(
+          assetId: pass.program!.assetId!,
+          stage: pass.executionKind,
+          entryPoint: pass.program!.entryPoint,
+        ),
+      MaterialCompiledProgramKind.generatedFragment when pass.program?.source != null =>
+        VulkanShaderAsset.generated(
+          source: pass.program!.source!,
+          cacheKey: pass.program!.cacheKey,
+          stage: pass.executionKind,
+          entryPoint: pass.program!.entryPoint,
+        ),
+      _ => null,
+    };
 
     return VulkanMaterialPassPlan(
       nodeId: pass.nodeId,
-      shader: pass.shaderAssetId == null
-          ? null
-          : VulkanShaderAsset(
-              assetId: pass.shaderAssetId!,
-              stage: pass.executionKind,
-            ),
+      shader: shader,
       descriptorBindings: [
         const VulkanDescriptorBindingSpec(
           set: 0,
@@ -69,7 +81,7 @@ class VulkanMaterialBackendPlanner {
         usage: outputUsage,
       ),
       pipelineCacheKey: VulkanMaterialPipelineCacheKey(
-        shaderAssetId: pass.shaderAssetId ?? 'unsupported:${pass.definitionId}',
+        shaderKey: shader?.cacheKey ?? 'unsupported:${pass.definitionId}',
         executionKind: pass.executionKind,
         sampledInputCount: pass.textureInputs.length,
       ),

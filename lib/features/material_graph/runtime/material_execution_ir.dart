@@ -5,6 +5,45 @@ import '../material_output_size.dart';
 
 enum MaterialPassOutputKind { preview, finalOutput }
 
+enum MaterialCompiledProgramKind { asset, generatedFragment }
+
+class MaterialCompiledProgram {
+  const MaterialCompiledProgram._({
+    required this.kind,
+    required this.cacheKey,
+    this.assetId,
+    this.source,
+    this.entryPoint = 'main',
+  });
+
+  const MaterialCompiledProgram.asset({
+    required String assetId,
+    String entryPoint = 'main',
+  }) : this._(
+         kind: MaterialCompiledProgramKind.asset,
+         assetId: assetId,
+         cacheKey: assetId,
+         entryPoint: entryPoint,
+       );
+
+  const MaterialCompiledProgram.generatedFragment({
+    required String source,
+    required String cacheKey,
+    String entryPoint = 'main',
+  }) : this._(
+         kind: MaterialCompiledProgramKind.generatedFragment,
+         source: source,
+         cacheKey: cacheKey,
+         entryPoint: entryPoint,
+       );
+
+  final MaterialCompiledProgramKind kind;
+  final String cacheKey;
+  final String? assetId;
+  final String? source;
+  final String entryPoint;
+}
+
 class MaterialResolvedOutputSize {
   const MaterialResolvedOutputSize({
     required this.width,
@@ -93,24 +132,28 @@ class MaterialCompiledNodePass {
     required this.nodeName,
     required this.definitionId,
     required this.executionKind,
-    required this.shaderAssetId,
+    required this.program,
     required this.textureInputs,
     required this.parameterBindings,
     required this.output,
     required this.upstreamNodeIds,
     required this.resolvedOutputSize,
+    this.diagnostics = const <String>[],
   });
 
   final String nodeId;
   final String nodeName;
   final String definitionId;
   final MaterialNodeExecutionKind executionKind;
-  final String? shaderAssetId;
+  final MaterialCompiledProgram? program;
   final List<MaterialCompiledTextureInput> textureInputs;
   final List<MaterialCompiledParameterBinding> parameterBindings;
   final MaterialCompiledOutputBinding output;
   final List<String> upstreamNodeIds;
   final MaterialResolvedOutputSize resolvedOutputSize;
+  final List<String> diagnostics;
+
+  String? get shaderAssetId => program?.assetId;
 }
 
 class MaterialCompiledGraph {

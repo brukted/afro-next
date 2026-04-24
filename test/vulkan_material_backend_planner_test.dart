@@ -1,6 +1,9 @@
 import 'package:eyecandy/features/graph/models/graph_models.dart';
+import 'package:eyecandy/features/math_graph/math_graph_catalog.dart';
+import 'package:eyecandy/features/math_graph/runtime/math_graph_compiler.dart';
 import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
 import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
+import 'package:eyecandy/features/workspace/workspace_controller.dart';
 import 'package:eyecandy/shared/ids/id_factory.dart';
 import 'package:eyecandy/vulkan/material_backend/material_backend_models.dart';
 import 'package:eyecandy/vulkan/material_backend/material_backend_planner.dart';
@@ -166,6 +169,42 @@ void main() {
       hasLength(1),
     );
   });
+
+  test('planner carries generated texel graph programs through the backend plan', () {
+    final catalog = MaterialGraphCatalog(IdFactory());
+    final workspaceController = WorkspaceController.preview()
+      ..initializeForPreview()
+      ..createMathGraphAt(null)
+      ..updateActiveMathGraph(_buildScalarSampleMathGraph('amount'));
+    final mathGraphCompiler = MathGraphCompiler(catalog: MathGraphCatalog(IdFactory()));
+    final texelNode = _setWorkspaceResourceProperty(
+      catalog.instantiateNode(
+        definitionId: 'texel_graph_node',
+        position: vmath.Vector2.zero(),
+      ),
+      key: 'graph',
+      value: workspaceController.openedResource!.id,
+    );
+    final graph = GraphDocument(
+      id: 'texel-plan',
+      name: 'Texel Plan',
+      nodes: [texelNode],
+      links: const [],
+    );
+
+    final compiled = MaterialGraphCompiler(
+      catalog: catalog,
+      workspaceController: workspaceController,
+      mathGraphCompiler: mathGraphCompiler,
+    ).compile(graph);
+    final plan = const VulkanMaterialBackendPlanner().createPlan(compiled);
+    final texelPass = plan.passForNode(texelNode.id)!;
+
+    expect(texelPass.isSupported, isTrue);
+    expect(texelPass.shader?.kind, VulkanShaderKind.generated);
+    expect(texelPass.shader?.source, contains('sampler2D(sampler_0, LinearClampSampler)'));
+    expect(texelPass.pipelineCacheKey.shaderKey, contains('texel_graph:'));
+  });
 }
 
 GraphLinkDocument _connect({
@@ -180,5 +219,72 @@ GraphLinkDocument _connect({
     fromPropertyId: fromNode.propertyByDefinitionKey(fromKey)!.id,
     toNodeId: toNode.id,
     toPropertyId: toNode.propertyByDefinitionKey(toKey)!.id,
+  );
+}
+
+GraphNodeDocument _setWorkspaceResourceProperty(
+  GraphNodeDocument node, {
+  required String key,
+  required String value,
+}) {
+  return node.copyWith(
+    properties: node.properties
+        .map(
+          (property) => property.definitionKey == key
+              ? property.copyWith(value: GraphValueData.workspaceResource(value))
+              : property,
+        )
+        .toList(growable: false),
+  );
+}
+
+GraphDocument _buildScalarSampleMathGraph(String scalarIdentifier) {
+  final catalog = MathGraphCatalog(IdFactory());
+  final pos = catalog.instantiateNode(
+    definitionId: 'builtin_pos_node',
+    position: vmath.Vector2.zero(),
+  );
+  final sample = catalog.instantiateNode(
+    definitionId: 'sample_color_node',
+    position: vmath.Vector2(200, 0),
+  );
+  final amount = catalog.instantiateNode(
+    definitionId: 'get_float1_node',
+    position: vmath.Vector2(200, 180),
+  );
+  final multiply = catalog.instantiateNode(
+    definitionId: 'scalar_multiply_float4_node',
+    position: vmath.Vector2(420, 80),
+  );
+  final output = catalog.instantiateNode(
+    definitionId: 'output_float4_node',
+    position: vmath.Vector2(650, 80),
+  );
+  final configuredAmount = amount.copyWith(
+    properties: amount.properties
+        .map(
+          (property) => property.definitionKey == 'identifier'
+              ? property.copyWith(
+                  value: GraphValueData.stringValue(scalarIdentifier),
+                )
+              : property,
+        )
+        .toList(growable: false),
+  );
+  return GraphDocument(
+    id: 'math-plan-$scalarIdentifier',
+    name: 'Planner Sample',
+    nodes: [pos, sample, configuredAmount, multiply, output],
+    links: [
+      _connect(fromNode: pos, fromKey: '_output', toNode: sample, toKey: 'uv'),
+      _connect(fromNode: sample, fromKey: '_output', toNode: multiply, toKey: 'a'),
+      _connect(
+        fromNode: configuredAmount,
+        fromKey: '_output',
+        toNode: multiply,
+        toKey: 'b',
+      ),
+      _connect(fromNode: multiply, fromKey: '_output', toNode: output, toKey: 'value'),
+    ],
   );
 }

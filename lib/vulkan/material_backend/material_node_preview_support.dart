@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../../features/graph/models/graph_models.dart';
+import '../../features/graph/models/graph_schema.dart';
 import '../../features/material_graph/material_node_definition.dart';
 import '../../features/material_graph/runtime/material_execution_ir.dart';
 
@@ -146,11 +147,20 @@ class MaterialNodePreviewSupportRegistry {
       };
 
   static MaterialNodePreviewSupport? lookup(MaterialCompiledNodePass pass) {
+    final generatedProgram = pass.program;
+    if (generatedProgram?.kind ==
+            MaterialCompiledProgramKind.generatedFragment &&
+        pass.executionKind == MaterialNodeExecutionKind.fragment) {
+      return const MaterialNodePreviewSupport(
+        executionKind: MaterialNodeExecutionKind.fragment,
+        packUniforms: _packGeneratedGraphUniforms,
+      );
+    }
     final support = _supportByDefinitionId[pass.definitionId];
     if (support == null) {
       return null;
     }
-    if (pass.shaderAssetId == null ||
+    if (pass.program?.assetId == null ||
         pass.executionKind != support.executionKind) {
       return null;
     }
@@ -175,6 +185,28 @@ class MaterialNodePreviewSupportRegistry {
     MaterialPreviewPackingContext context,
   ) {
     return _floatBlock4(0, 0, 0, 0);
+  }
+
+  static Uint8List _packGeneratedGraphUniforms(
+    MaterialCompiledNodePass pass,
+    MaterialPreviewPackingContext context,
+  ) {
+    final data = ByteData(16 + (_std140SlotCount(pass.parameterBindings) * 16));
+    data
+      ..setFloat32(0, context.width.toDouble(), Endian.little)
+      ..setFloat32(4, context.height.toDouble(), Endian.little)
+      ..setFloat32(8, 0, Endian.little)
+      ..setFloat32(12, 0, Endian.little);
+    var offset = 16;
+    for (final binding in pass.parameterBindings) {
+      offset = _writeStd140Value(
+        data,
+        offset,
+        binding.valueType,
+        binding.value,
+      );
+    }
+    return data.buffer.asUint8List();
   }
 
   static Uint8List _packSolidColorUniforms(
@@ -448,6 +480,72 @@ class MaterialNodePreviewSupportRegistry {
   }
 
   static int _boolAsInt(bool value) => value ? 1 : 0;
+
+  static int _std140SlotCount(List<MaterialCompiledParameterBinding> bindings) {
+    var slots = 0;
+    for (final binding in bindings) {
+      slots += switch (binding.valueType) {
+        GraphValueType.float3x3 => 3,
+        _ => 1,
+      };
+    }
+    return slots;
+  }
+
+  static int _writeStd140Value(
+    ByteData data,
+    int offset,
+    GraphValueType valueType,
+    GraphValueData value,
+  ) {
+    switch (valueType) {
+      case GraphValueType.boolean:
+        data.setInt32(
+          offset,
+          _boolAsInt(value.boolValue ?? false),
+          Endian.little,
+        );
+        return offset + 16;
+      case GraphValueType.integer:
+      case GraphValueType.enumChoice:
+        data.setInt32(
+          offset,
+          value.integerValue ?? value.enumValue ?? 0,
+          Endian.little,
+        );
+        return offset + 16;
+      case GraphValueType.integer2:
+      case GraphValueType.integer3:
+      case GraphValueType.integer4:
+        final values = value.integerValues ?? const <int>[];
+        for (var index = 0; index < values.length && index < 4; index += 1) {
+          data.setInt32(offset + (index * 4), values[index], Endian.little);
+        }
+        return offset + 16;
+      case GraphValueType.float:
+        data.setFloat32(offset, value.floatValue ?? 0, Endian.little);
+        return offset + 16;
+      case GraphValueType.float2:
+      case GraphValueType.float3:
+      case GraphValueType.float4:
+        final values = value.floatValues ?? const <double>[];
+        for (var index = 0; index < values.length && index < 4; index += 1) {
+          data.setFloat32(offset + (index * 4), values[index], Endian.little);
+        }
+        return offset + 16;
+      case GraphValueType.float3x3:
+        _writeMatrix3Columns(data, offset, value.asFloat3x3());
+        return offset + 48;
+      case GraphValueType.stringValue:
+      case GraphValueType.workspaceResource:
+      case GraphValueType.gradient:
+      case GraphValueType.colorBezierCurve:
+      case GraphValueType.textBlock:
+        throw UnsupportedError(
+          'Graph-backed uniform packing does not support $valueType.',
+        );
+    }
+  }
 
   static void _writeMatrix3Columns(
     ByteData data,

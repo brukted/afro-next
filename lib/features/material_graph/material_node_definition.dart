@@ -56,6 +56,37 @@ class MaterialNodeDefinition {
     return schema.propertyDefinition(key);
   }
 
+  MaterialNodeDefinition copyWith({
+    GraphNodeSchema? schema,
+    IconData? icon,
+    Vector4? accentColor,
+    MaterialNodeRuntimeDefinition? runtime,
+    MaterialNodeKind? kind,
+    Object? primaryInputPropertyKey = _materialNodeDefinitionUndefined,
+    Object? inputValuePropertyKey = _materialNodeDefinitionUndefined,
+    Object? inputResourcePropertyKey = _materialNodeDefinitionUndefined,
+  }) {
+    return MaterialNodeDefinition(
+      schema: schema ?? this.schema,
+      icon: icon ?? this.icon,
+      accentColor: accentColor ?? this.accentColor,
+      runtime: runtime ?? this.runtime,
+      kind: kind ?? this.kind,
+      primaryInputPropertyKey:
+          identical(primaryInputPropertyKey, _materialNodeDefinitionUndefined)
+          ? this.primaryInputPropertyKey
+          : primaryInputPropertyKey as String?,
+      inputValuePropertyKey:
+          identical(inputValuePropertyKey, _materialNodeDefinitionUndefined)
+          ? this.inputValuePropertyKey
+          : inputValuePropertyKey as String?,
+      inputResourcePropertyKey:
+          identical(inputResourcePropertyKey, _materialNodeDefinitionUndefined)
+          ? this.inputResourcePropertyKey
+          : inputResourcePropertyKey as String?,
+    );
+  }
+
   String? get resolvedPrimaryInputPropertyKey {
     return primaryInputPropertyKey ??
         properties
@@ -74,3 +105,5 @@ class MaterialNodeDefinition {
 extension<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
+
+const Object _materialNodeDefinitionUndefined = Object();

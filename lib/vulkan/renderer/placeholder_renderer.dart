@@ -32,12 +32,12 @@ class PlaceholderVulkanRendererFacade implements RendererFacade {
       revision: revision,
       labelBuilder: (pass, isDirty) => isDirty ? 'Dirty preview' : 'Ready',
       diagnosticsBuilder: (pass, revision) => <String>[
-        'Shader: ${pass.shader?.assetId ?? 'Unassigned'}',
+        'Shader: ${pass.shader?.displayLabel ?? 'Unassigned'}',
         'Stage: ${pass.shader?.stage.name ?? 'unsupported'}',
         'Bindings: ${pass.descriptorBindings.length}',
         'Target: ${pass.outputTarget.usage.name}',
         pass.resolvedOutputSize.extentDiagnostic,
-        'Cache key: ${pass.pipelineCacheKey.shaderAssetId}',
+        'Cache key: ${pass.pipelineCacheKey.shaderKey}',
         'Supported: ${pass.isSupported}',
         'Revision: $revision',
       ],
@@ -78,7 +78,7 @@ class PreviewOnlyRendererFacade implements RendererFacade {
       revision: revision,
       labelBuilder: (_, _) => 'Preview',
       diagnosticsBuilder: (pass, revision) => <String>[
-        'Shader: ${pass.shader?.assetId ?? 'Unassigned'}',
+        'Shader: ${pass.shader?.displayLabel ?? 'Unassigned'}',
         'Target: ${pass.outputTarget.usage.name}',
         'Bindings: ${pass.descriptorBindings.length}',
         pass.resolvedOutputSize.extentDiagnostic,

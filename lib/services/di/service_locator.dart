@@ -75,6 +75,8 @@ Future<void> configureServiceLocator({
     ..registerLazySingleton<MaterialGraphCompiler>(
       () => MaterialGraphCompiler(
         catalog: serviceLocator<MaterialGraphCatalog>(),
+        workspaceController: serviceLocator<WorkspaceController>(),
+        mathGraphCompiler: serviceLocator<MathGraphCompiler>(),
       ),
     )
     ..registerLazySingleton<MathGraphCompiler>(
@@ -92,6 +94,8 @@ Future<void> configureServiceLocator({
         idFactory: serviceLocator<IdFactory>(),
         catalog: serviceLocator<MaterialGraphCatalog>(),
         runtime: serviceLocator<MaterialGraphRuntime>(),
+        workspaceController: serviceLocator<WorkspaceController>(),
+        mathGraphCompiler: serviceLocator<MathGraphCompiler>(),
       ),
       dispose: (controller) => controller.dispose(),
     )
