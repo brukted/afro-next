@@ -33,18 +33,30 @@ private final class VulkanPreviewTextureSlot: NSObject, FlutterTexture {
 
     let bytesPerRow = CVPixelBufferGetBytesPerRow(nextPixelBuffer)
     bgraBytes.withUnsafeBytes { rawBuffer in
-      guard let sourceAddress = rawBuffer.baseAddress else {
+      guard let sourceAddress = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
         return
       }
+      let destinationAddress = baseAddress.assumingMemoryBound(to: UInt8.self)
 
       for row in 0..<height {
         let sourceOffset = row * width * 4
         let destinationOffset = row * bytesPerRow
-        memcpy(
-          baseAddress.advanced(by: destinationOffset),
-          sourceAddress.advanced(by: sourceOffset),
-          width * 4
-        )
+        let sourceRow = sourceAddress.advanced(by: sourceOffset)
+        let destinationRow = destinationAddress.advanced(by: destinationOffset)
+
+        for column in 0..<width {
+          let pixelOffset = column * 4
+          let blue = Int(sourceRow[pixelOffset])
+          let green = Int(sourceRow[pixelOffset + 1])
+          let red = Int(sourceRow[pixelOffset + 2])
+          let alpha = Int(sourceRow[pixelOffset + 3])
+
+          // Flutter's macOS texture path expects premultiplied alpha.
+          destinationRow[pixelOffset] = UInt8((blue * alpha + 127) / 255)
+          destinationRow[pixelOffset + 1] = UInt8((green * alpha + 127) / 255)
+          destinationRow[pixelOffset + 2] = UInt8((red * alpha + 127) / 255)
+          destinationRow[pixelOffset + 3] = UInt8(alpha)
+        }
       }
     }
 
