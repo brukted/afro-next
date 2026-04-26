@@ -1,6 +1,6 @@
-import 'package:eyecandy/features/graph/models/graph_schema.dart';
-import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
-import 'package:eyecandy/shared/ids/id_factory.dart';
+import 'package:afro/features/graph/models/graph_schema.dart';
+import 'package:afro/features/material_graph/material_graph_catalog.dart';
+import 'package:afro/shared/ids/id_factory.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 

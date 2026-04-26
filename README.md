@@ -1,4 +1,4 @@
-# eyecandy
+# afro
 
 A new Flutter project.
 

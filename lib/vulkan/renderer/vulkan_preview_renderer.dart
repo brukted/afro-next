@@ -227,7 +227,7 @@ class _VulkanMaterialExecutor {
   final PreviewTextureRegistry _textureRegistry;
   final VulkanGeneratedShaderCompiler _generatedShaderCompiler;
   final WorkspaceController? _workspaceController;
-  static final Logger _logger = Logger('eyecandy.preview.vulkan');
+  static final Logger _logger = Logger('afro.preview.vulkan');
 
   late final VulkanRuntimeBindings _vk;
   Pointer<VkInstance> _instance = nullptr;

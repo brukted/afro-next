@@ -1,10 +1,10 @@
-import 'package:eyecandy/app/theme/app_theme.dart';
-import 'package:eyecandy/features/graph/models/graph_models.dart';
-import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
-import 'package:eyecandy/features/material_graph/material_graph_controller.dart';
-import 'package:eyecandy/features/property_editor/color_curve_editor.dart';
-import 'package:eyecandy/features/property_editor/property_editor_panel.dart';
-import 'package:eyecandy/shared/ids/id_factory.dart';
+import 'package:afro/app/theme/app_theme.dart';
+import 'package:afro/features/graph/models/graph_models.dart';
+import 'package:afro/features/material_graph/material_graph_catalog.dart';
+import 'package:afro/features/material_graph/material_graph_controller.dart';
+import 'package:afro/features/property_editor/color_curve_editor.dart';
+import 'package:afro/features/property_editor/property_editor_panel.dart';
+import 'package:afro/shared/ids/id_factory.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;

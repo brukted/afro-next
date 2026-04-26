@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:eyecandy/features/graph/models/graph_models.dart';
-import 'package:eyecandy/features/graph/models/graph_schema.dart';
-import 'package:eyecandy/features/workspace/models/workspace_models.dart';
-import 'package:eyecandy/features/workspace/workspace_controller.dart';
-import 'package:eyecandy/vulkan/renderer/material_fallback_texture_generator.dart';
+import 'package:afro/features/graph/models/graph_models.dart';
+import 'package:afro/features/graph/models/graph_schema.dart';
+import 'package:afro/features/workspace/models/workspace_models.dart';
+import 'package:afro/features/workspace/workspace_controller.dart';
+import 'package:afro/vulkan/renderer/material_fallback_texture_generator.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 
@@ -37,7 +37,7 @@ void main() {
 
   test('generates gradient text image and svg fallback textures', () async {
     final workspaceController = WorkspaceController.preview()..initializeForPreview();
-    final tempDir = await Directory.systemTemp.createTemp('eyecandy-fallbacks');
+    final tempDir = await Directory.systemTemp.createTemp('afro-fallbacks');
     addTearDown(() => tempDir.delete(recursive: true));
 
     final imagePath = '${tempDir.path}/pixel.png';

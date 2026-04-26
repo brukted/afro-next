@@ -1,8 +1,8 @@
-import 'package:eyecandy/features/graph/models/graph_models.dart';
-import 'package:eyecandy/features/graph/models/graph_schema.dart';
-import 'package:eyecandy/features/math_graph/math_node_definition.dart';
-import 'package:eyecandy/features/math_graph/runtime/math_glsl_emitter.dart';
-import 'package:eyecandy/features/math_graph/runtime/math_graph_ir.dart';
+import 'package:afro/features/graph/models/graph_models.dart';
+import 'package:afro/features/graph/models/graph_schema.dart';
+import 'package:afro/features/math_graph/math_node_definition.dart';
+import 'package:afro/features/math_graph/runtime/math_glsl_emitter.dart';
+import 'package:afro/features/math_graph/runtime/math_graph_ir.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

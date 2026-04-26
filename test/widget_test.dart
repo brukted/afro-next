@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:eyecandy/app/app.dart';
-import 'package:eyecandy/app/startup/app_bootstrap.dart';
+import 'package:afro/app/app.dart';
+import 'package:afro/app/startup/app_bootstrap.dart';
 
 void main() {
   testWidgets('renders the editor workspace shell', (WidgetTester tester) async {

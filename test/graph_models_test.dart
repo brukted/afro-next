@@ -1,5 +1,5 @@
-import 'package:eyecandy/features/graph/models/graph_models.dart';
-import 'package:eyecandy/features/graph/models/graph_schema.dart';
+import 'package:afro/features/graph/models/graph_models.dart';
+import 'package:afro/features/graph/models/graph_schema.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart';
 

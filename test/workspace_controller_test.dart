@@ -3,9 +3,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:eyecandy/services/filesystem/workspace_file_store.dart';
-import 'package:eyecandy/features/workspace/models/workspace_models.dart';
-import 'package:eyecandy/features/workspace/workspace_controller.dart';
+import 'package:afro/services/filesystem/workspace_file_store.dart';
+import 'package:afro/features/workspace/models/workspace_models.dart';
+import 'package:afro/features/workspace/workspace_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -112,7 +112,7 @@ void main() {
   test('imports image and svg resources into the workspace', () async {
     final controller = WorkspaceController.preview()..initializeForPreview();
     final initiallyOpenedId = controller.openedResourceId;
-    final tempDir = await Directory.systemTemp.createTemp('eyecandy-assets');
+    final tempDir = await Directory.systemTemp.createTemp('afro-assets');
     addTearDown(() => tempDir.delete(recursive: true));
 
     final imagePath = '${tempDir.path}/checker.png';
@@ -158,11 +158,11 @@ void main() {
       final sourceController = WorkspaceController.preview()
         ..initializeForPreview();
       final tempDir = await Directory.systemTemp.createTemp(
-        'eyecandy-workspace',
+        'afro-workspace',
       );
       addTearDown(() => tempDir.delete(recursive: true));
 
-      final workspacePath = '${tempDir.path}/sample.eyecandy.json';
+      final workspacePath = '${tempDir.path}/sample.afro.json';
       await const WorkspaceFileStore().save(
         path: workspacePath,
         workspace: sourceController.workspace,
@@ -179,7 +179,7 @@ void main() {
   );
 
   test('opens workspace files with decoded graph position arrays', () async {
-    final tempDir = await Directory.systemTemp.createTemp('eyecandy-workspace');
+    final tempDir = await Directory.systemTemp.createTemp('afro-workspace');
     addTearDown(() => tempDir.delete(recursive: true));
 
     final workspacePath = '${tempDir.path}/positions.eye.json';

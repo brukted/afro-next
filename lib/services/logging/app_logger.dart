@@ -24,11 +24,11 @@ class AppLogger {
   static Future<AppLogger> bootstrap({
     required Directory logsDirectory,
   }) async {
-    final logFile = File(p.join(logsDirectory.path, 'eyecandy.log'));
+    final logFile = File(p.join(logsDirectory.path, 'afro.log'));
     await logFile.create(recursive: true);
 
     return AppLogger._(
-      logger: Logger('eyecandy'),
+      logger: Logger('afro'),
       logFile: logFile,
       mirrorToConsole: true,
     );
@@ -36,7 +36,7 @@ class AppLogger {
 
   factory AppLogger.memory() {
     return AppLogger._(
-      logger: Logger.detached('eyecandy.preview'),
+      logger: Logger.detached('afro.preview'),
       logFile: null,
       mirrorToConsole: true,
     );

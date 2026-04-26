@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
-import 'package:eyecandy/features/material_graph/runtime/material_execution_ir.dart';
-import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
-import 'package:eyecandy/features/material_graph/runtime/material_graph_runtime.dart';
-import 'package:eyecandy/shared/ids/id_factory.dart';
-import 'package:eyecandy/vulkan/bootstrap/vulkan_bootstrap.dart';
-import 'package:eyecandy/vulkan/renderer/renderer_facade.dart';
-import 'package:eyecandy/vulkan/resources/preview_render_target.dart';
+import 'package:afro/features/material_graph/material_graph_catalog.dart';
+import 'package:afro/features/material_graph/runtime/material_execution_ir.dart';
+import 'package:afro/features/material_graph/runtime/material_graph_compiler.dart';
+import 'package:afro/features/material_graph/runtime/material_graph_runtime.dart';
+import 'package:afro/shared/ids/id_factory.dart';
+import 'package:afro/vulkan/bootstrap/vulkan_bootstrap.dart';
+import 'package:afro/vulkan/renderer/renderer_facade.dart';
+import 'package:afro/vulkan/resources/preview_render_target.dart';
 import 'package:vector_math/vector_math.dart' show Vector2;
 
 void main() {

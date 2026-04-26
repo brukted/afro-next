@@ -53,7 +53,7 @@ class VulkanLibraryLoader {
 
   static List<String> _candidateLibraries() {
     final libraries = <String>[];
-    final overridePath = Platform.environment['EYECANDY_VULKAN_LIBRARY'];
+    final overridePath = Platform.environment['AFRO_VULKAN_LIBRARY'];
     if (overridePath != null && overridePath.isNotEmpty) {
       libraries.add(overridePath);
     }

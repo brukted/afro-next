@@ -1,14 +1,14 @@
-import 'package:eyecandy/features/graph/models/graph_models.dart';
-import 'package:eyecandy/features/graph/models/graph_schema.dart';
-import 'package:eyecandy/features/math_graph/math_graph_catalog.dart';
-import 'package:eyecandy/features/math_graph/runtime/math_graph_compiler.dart';
-import 'package:eyecandy/features/material_graph/material_graph_catalog.dart';
-import 'package:eyecandy/features/material_graph/material_graph_controller.dart';
-import 'package:eyecandy/features/material_graph/runtime/material_graph_compiler.dart';
-import 'package:eyecandy/features/material_graph/runtime/material_graph_runtime.dart';
-import 'package:eyecandy/features/workspace/workspace_controller.dart';
-import 'package:eyecandy/shared/ids/id_factory.dart';
-import 'package:eyecandy/vulkan/renderer/placeholder_renderer.dart';
+import 'package:afro/features/graph/models/graph_models.dart';
+import 'package:afro/features/graph/models/graph_schema.dart';
+import 'package:afro/features/math_graph/math_graph_catalog.dart';
+import 'package:afro/features/math_graph/runtime/math_graph_compiler.dart';
+import 'package:afro/features/material_graph/material_graph_catalog.dart';
+import 'package:afro/features/material_graph/material_graph_controller.dart';
+import 'package:afro/features/material_graph/runtime/material_graph_compiler.dart';
+import 'package:afro/features/material_graph/runtime/material_graph_runtime.dart';
+import 'package:afro/features/workspace/workspace_controller.dart';
+import 'package:afro/shared/ids/id_factory.dart';
+import 'package:afro/vulkan/renderer/placeholder_renderer.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vmath;
 

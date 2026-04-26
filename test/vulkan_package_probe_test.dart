@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:eyecandy/vulkan/ffi/vulkan_package_probe.dart';
+import 'package:afro/vulkan/ffi/vulkan_package_probe.dart';
 
 void main() {
   test('loads a Vulkan runtime and creates an instance on desktop', () async {

@@ -19,7 +19,7 @@ class AppPaths {
   final Directory cacheDirectory;
 
   static Future<AppPaths> initialize({
-    String applicationName = 'eyecandy',
+    String applicationName = 'afro',
   }) async {
     final supportDirectory = await getApplicationSupportDirectory();
     final cacheBaseDirectory = await getTemporaryDirectory();

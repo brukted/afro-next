@@ -1,4 +1,4 @@
-package com.example.eyecandy
+package com.example.afro
 
 import io.flutter.embedding.android.FlutterActivity
 

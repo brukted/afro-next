@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:eyecandy/vulkan/renderer/vulkan_generated_shader_compiler.dart';
+import 'package:afro/vulkan/renderer/vulkan_generated_shader_compiler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -72,7 +72,7 @@ void main() {
 
   test('uses fallback absolute compiler paths when PATH lookup is unavailable', () async {
     final tempDirectory = await Directory.systemTemp.createTemp(
-      'eyecandy_glslang_fallback_test_',
+      'afro_glslang_fallback_test_',
     );
     addTearDown(() async {
       if (await tempDirectory.exists()) {

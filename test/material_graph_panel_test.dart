@@ -1,5 +1,5 @@
-import 'package:eyecandy/features/material_graph/material_graph_panel.dart';
-import 'package:eyecandy/vulkan/resources/preview_render_target.dart';
+import 'package:afro/features/material_graph/material_graph_panel.dart';
+import 'package:afro/vulkan/resources/preview_render_target.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

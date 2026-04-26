@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:eyecandy/vulkan/ffi/vulkan_package_probe.dart';
+import 'package:afro/vulkan/ffi/vulkan_package_probe.dart';
 
 Future<void> main() async {
   final result = await VulkanPackageProbe().probe();

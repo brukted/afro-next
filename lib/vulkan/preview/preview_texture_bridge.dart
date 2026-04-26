@@ -26,7 +26,7 @@ class MethodChannelPreviewTextureBridge implements PreviewTextureBridge {
   const MethodChannelPreviewTextureBridge();
 
   static const MethodChannel _channel = MethodChannel(
-    'eyecandy/vulkan_preview_texture',
+    'afro/vulkan_preview_texture',
   );
 
   @override

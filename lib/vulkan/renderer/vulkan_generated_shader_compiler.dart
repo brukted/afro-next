@@ -57,7 +57,7 @@ class ExternalProcessVulkanGeneratedShaderCompiler
   final String? _executablePath;
   final List<String>? _fallbackExecutablePaths;
   final Map<String, Uint8List> _cache = <String, Uint8List>{};
-  static final Logger _logger = Logger('eyecandy.preview.shader');
+  static final Logger _logger = Logger('afro.preview.shader');
 
   @override
   Future<Uint8List> compileFragmentShader({
@@ -79,7 +79,7 @@ class ExternalProcessVulkanGeneratedShaderCompiler
     try {
       stage = 'create-temp-directory';
       tempDirectory = await Directory.systemTemp.createTemp(
-        'eyecandy_generated_shader_',
+        'afro_generated_shader_',
       );
       stage = 'resolve-temp-directory';
       final canonicalTempDirectory = await tempDirectory.resolveSymbolicLinks();
@@ -179,7 +179,7 @@ class ExternalProcessVulkanGeneratedShaderCompiler
 
   String _resolveExecutablePath() {
     final override =
-        _executablePath ?? Platform.environment['EYECANDY_GLSLANG_VALIDATOR'];
+        _executablePath ?? Platform.environment['AFRO_GLSLANG_VALIDATOR'];
     if (override != null && override.trim().isNotEmpty) {
       return override.trim();
     }

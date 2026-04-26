@@ -2,9 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:eyecandy/app/theme/app_theme.dart';
-import 'package:eyecandy/features/outliner/outliner_panel.dart';
-import 'package:eyecandy/features/workspace/workspace_controller.dart';
+import 'package:afro/app/theme/app_theme.dart';
+import 'package:afro/features/outliner/outliner_panel.dart';
+import 'package:afro/features/workspace/workspace_controller.dart';
 
 void main() {
   setUp(() {

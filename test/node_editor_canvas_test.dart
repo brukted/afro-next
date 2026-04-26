@@ -1,9 +1,9 @@
 import 'dart:ui';
 
-import 'package:eyecandy/features/graph/models/graph_schema.dart';
-import 'package:eyecandy/features/node_editor/node_editor_canvas.dart';
-import 'package:eyecandy/features/node_editor/node_editor_models.dart';
-import 'package:eyecandy/features/node_editor/node_editor_viewport.dart';
+import 'package:afro/features/graph/models/graph_schema.dart';
+import 'package:afro/features/node_editor/node_editor_canvas.dart';
+import 'package:afro/features/node_editor/node_editor_models.dart';
+import 'package:afro/features/node_editor/node_editor_viewport.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

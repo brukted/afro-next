@@ -104,7 +104,7 @@ private final class VulkanPreviewTexturePlugin: NSObject, FlutterPlugin {
 
   init(registrar: FlutterPluginRegistrar) {
     channel = FlutterMethodChannel(
-      name: "eyecandy/vulkan_preview_texture",
+      name: "afro/vulkan_preview_texture",
       binaryMessenger: registrar.messenger
     )
     textures = registrar.textures
