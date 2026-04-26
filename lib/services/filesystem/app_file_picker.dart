@@ -12,12 +12,12 @@ class AppFilePicker {
   Future<String?> openWorkspaceFile() async {
     return _pickSingleFilePath(
       dialogTitle: 'Open Workspace',
-      allowedExtensions: const ['json', 'eye'],
+      allowedExtensions: const ['json', 'afro'],
     );
   }
 
   Future<String?> saveWorkspaceFile({
-    String suggestedName = 'material_graph.eye',
+    String suggestedName = 'material_graph.afro',
   }) async {
     if (!_interactive) {
       return null;
@@ -28,7 +28,7 @@ class AppFilePicker {
       dialogTitle: 'Save Workspace',
       fileName: suggestedName,
       type: FileType.custom,
-      allowedExtensions: const ['json', 'eye'],
+      allowedExtensions: const ['json', 'afro'],
       lockParentWindow: true,
     );
   }

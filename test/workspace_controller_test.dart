@@ -182,7 +182,7 @@ void main() {
     final tempDir = await Directory.systemTemp.createTemp('afro-workspace');
     addTearDown(() => tempDir.delete(recursive: true));
 
-    final workspacePath = '${tempDir.path}/positions.eye.json';
+    final workspacePath = '${tempDir.path}/positions.afro.json';
     await File(workspacePath).writeAsString('''
 {
   "id": "workspace-id",
