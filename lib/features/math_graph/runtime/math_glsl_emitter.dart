@@ -6,7 +6,13 @@ class MathGlslEmitter {
   const MathGlslEmitter();
 
   MathCompiledFunction emit(MathIrGraph ir) {
-    final buffer = StringBuffer()
+    final buffer = StringBuffer();
+    for (final helperSource in ir.helperFunctionSources) {
+      buffer
+        ..writeln(helperSource.trimRight())
+        ..writeln();
+    }
+    buffer
       ..writeln(_signature(ir))
       ..writeln('{');
     for (final statement in ir.statements) {
@@ -78,7 +84,8 @@ class MathGlslEmitter {
       return '(${_emitExpression(expression.condition)} ? ${_emitExpression(expression.whenTrue)} : ${_emitExpression(expression.whenFalse)})';
     }
     if (expression is MathIrTextureSampleExpression) {
-      final sample = 'texture(${_emitExpression(expression.sampler)}, ${_emitExpression(expression.uv)})';
+      final sample =
+          'texture(${_emitExpression(expression.sampler)}, ${_emitExpression(expression.uv)})';
       if (!expression.greyscale) {
         return sample;
       }

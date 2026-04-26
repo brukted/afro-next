@@ -36,7 +36,9 @@ Future<void> configureServiceLocator({
     ..registerSingleton<AppLogger>(logger)
     ..registerSingleton<AppPreferences>(AppPreferences(sharedPreferences))
     ..registerLazySingleton<AppFilePicker>(() => const AppFilePicker())
-    ..registerLazySingleton<WorkspaceFileStore>(() => const WorkspaceFileStore())
+    ..registerLazySingleton<WorkspaceFileStore>(
+      () => const WorkspaceFileStore(),
+    )
     ..registerLazySingleton<DesktopWindowService>(() => DesktopWindowService())
     ..registerLazySingleton<IdFactory>(() => IdFactory())
     ..registerLazySingleton<MaterialGraphCatalog>(
@@ -80,7 +82,10 @@ Future<void> configureServiceLocator({
       ),
     )
     ..registerLazySingleton<MathGraphCompiler>(
-      () => MathGraphCompiler(catalog: serviceLocator<MathGraphCatalog>()),
+      () => MathGraphCompiler(
+        catalog: serviceLocator<MathGraphCatalog>(),
+        workspaceController: serviceLocator<WorkspaceController>(),
+      ),
     )
     ..registerLazySingleton<MaterialGraphRuntime>(
       () => MaterialGraphRuntime(
@@ -104,8 +109,8 @@ Future<void> configureServiceLocator({
         idFactory: serviceLocator<IdFactory>(),
         catalog: serviceLocator<MathGraphCatalog>(),
         compiler: serviceLocator<MathGraphCompiler>(),
+        workspaceController: serviceLocator<WorkspaceController>(),
       ),
       dispose: (controller) => controller.dispose(),
-    )
-    ;
+    );
 }

@@ -57,7 +57,10 @@ abstract class MathIrExpression {
 }
 
 class MathIrLiteralExpression extends MathIrExpression {
-  const MathIrLiteralExpression({required super.valueType, required this.value});
+  const MathIrLiteralExpression({
+    required super.valueType,
+    required this.value,
+  });
 
   final GraphValueData value;
 }
@@ -171,10 +174,7 @@ class MathIrDeclareStatement extends MathIrStatement {
 }
 
 class MathIrAssignStatement extends MathIrStatement {
-  const MathIrAssignStatement({
-    required this.name,
-    required this.expression,
-  });
+  const MathIrAssignStatement({required this.name, required this.expression});
 
   final String name;
   final MathIrExpression expression;
@@ -190,6 +190,7 @@ class MathIrGraph {
     required this.statements,
     required this.returnExpression,
     required this.topologicalNodeIds,
+    this.helperFunctionSources = const <String>[],
   });
 
   final String graphId;
@@ -200,6 +201,7 @@ class MathIrGraph {
   final List<MathIrStatement> statements;
   final MathIrExpression returnExpression;
   final List<String> topologicalNodeIds;
+  final List<String> helperFunctionSources;
 }
 
 class MathCompiledFunction {

@@ -7,6 +7,7 @@ enum MathNodeKind {
   inputParameter,
   builtin,
   sampler,
+  subgraph,
   operation,
   variableSet,
   variableGet,
@@ -53,10 +54,7 @@ enum MathNodeOperation {
   sequence,
 }
 
-enum MathResultTypePolicy {
-  fixed,
-  sameAsValueInput,
-}
+enum MathResultTypePolicy { fixed, sameAsValueInput }
 
 class MathNodeCompileMetadata {
   const MathNodeCompileMetadata({
@@ -114,5 +112,6 @@ class MathNodeDefinition {
 
   bool get isGraphOutput => compileMetadata.kind == MathNodeKind.graphOutput;
 
-  bool get isInputParameter => compileMetadata.kind == MathNodeKind.inputParameter;
+  bool get isInputParameter =>
+      compileMetadata.kind == MathNodeKind.inputParameter;
 }

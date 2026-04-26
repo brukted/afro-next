@@ -6,8 +6,11 @@ import '../../shared/ids/id_factory.dart';
 import '../graph/models/graph_bindings.dart';
 import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
+import '../workspace/models/workspace_models.dart';
+import '../workspace/workspace_controller.dart';
 import 'math_graph_catalog.dart';
 import 'math_node_definition.dart';
+import 'runtime/math_graph_backed_resolver.dart';
 import 'runtime/math_graph_compiler.dart';
 import 'runtime/math_graph_ir.dart';
 
@@ -23,14 +26,43 @@ class PendingMathSocketConnection {
   final GraphSocketDirection direction;
 }
 
+class _GraphSynchronizationResult {
+  const _GraphSynchronizationResult({
+    required this.graph,
+    required this.changed,
+  });
+
+  final GraphDocument graph;
+  final bool changed;
+}
+
+class _NodeSynchronizationResult {
+  const _NodeSynchronizationResult({
+    required this.node,
+    required this.changed,
+    required this.removedPropertyIds,
+  });
+
+  final GraphNodeDocument node;
+  final bool changed;
+  final Set<String> removedPropertyIds;
+}
+
 class MathGraphController extends ChangeNotifier {
   MathGraphController({
     required IdFactory idFactory,
     required MathGraphCatalog catalog,
     required MathGraphCompiler compiler,
+    WorkspaceController? workspaceController,
   }) : _idFactory = idFactory,
        _catalog = catalog,
-       _compiler = compiler;
+       _compiler = compiler,
+       _workspaceController = workspaceController,
+       _resolver = MathGraphBackedNodeResolver(
+         catalog: catalog,
+         workspaceController: workspaceController,
+         mathGraphCompiler: compiler,
+       );
 
   factory MathGraphController.preview() {
     final idFactory = IdFactory();
@@ -45,6 +77,8 @@ class MathGraphController extends ChangeNotifier {
   final IdFactory _idFactory;
   final MathGraphCatalog _catalog;
   final MathGraphCompiler _compiler;
+  final WorkspaceController? _workspaceController;
+  final MathGraphBackedNodeResolver _resolver;
 
   GraphDocument? _graph;
   ValueChanged<GraphDocument>? _onGraphChanged;
@@ -102,13 +136,17 @@ class MathGraphController extends ChangeNotifier {
     required ValueChanged<GraphDocument> onChanged,
   }) {
     final graphChanged = _graph?.id != graph.id;
-    _graph = graph;
+    final synchronized = _synchronizeGraphBackedNodes(graph);
+    _graph = synchronized.graph;
     _onGraphChanged = onChanged;
     if (graphChanged) {
       _selectedNodeId = null;
       _pendingConnection = null;
     }
-    _recompileGraph(graph);
+    if (synchronized.changed) {
+      onChanged(synchronized.graph);
+    }
+    _recompileGraph(synchronized.graph);
     notifyListeners();
   }
 
@@ -369,6 +407,10 @@ class MathGraphController extends ChangeNotifier {
     required GraphValueData value,
   }) {
     final node = graph.nodes.firstWhere((entry) => entry.id == nodeId);
+    final changedProperty = node.propertyById(propertyId);
+    if (changedProperty == null) {
+      return;
+    }
     final updatedProperties = node.properties
         .map(
           (property) => property.id == propertyId
@@ -376,31 +418,42 @@ class MathGraphController extends ChangeNotifier {
               : property,
         )
         .toList(growable: false);
-
-    _commitGraph(
-      graph.copyWith(
-        nodes: graph.nodes
-            .map(
-              (entry) => entry.id == nodeId
-                  ? entry.copyWith(properties: updatedProperties)
-                  : entry,
-            )
-            .toList(growable: false),
-      ),
+    final updatedGraph = graph.copyWith(
+      nodes: graph.nodes
+          .map(
+            (entry) => entry.id == nodeId
+                ? entry.copyWith(properties: updatedProperties)
+                : entry,
+          )
+          .toList(growable: false),
     );
+    final synchronized =
+        _isSubgraphNode(node) &&
+            changedProperty.definitionKey == mathSubgraphResourcePropertyKey
+        ? _synchronizeGraphBackedNodes(updatedGraph)
+        : _GraphSynchronizationResult(graph: updatedGraph, changed: false);
+    _commitGraph(synchronized.graph);
   }
 
   MathNodeDefinition definitionForNode(GraphNodeDocument node) {
-    return _catalog.definitionById(node.definitionId);
+    return _resolver
+        .resolveNode(node, currentResourceId: _currentMathGraphResourceId)
+        .definition;
   }
 
   List<GraphPropertyBinding> boundPropertiesForNode(GraphNodeDocument node) {
     final definition = definitionForNode(node);
     return definition.properties
         .map((propertyDefinition) {
-          final property = node.properties.firstWhere(
-            (entry) => entry.definitionKey == propertyDefinition.key,
-          );
+          final property =
+              node.properties.firstWhereOrNull(
+                (entry) => entry.definitionKey == propertyDefinition.key,
+              ) ??
+              GraphNodePropertyData(
+                id: '${node.id}:${propertyDefinition.key}',
+                definitionKey: propertyDefinition.key,
+                value: _catalog.defaultValueForProperty(propertyDefinition),
+              );
           return GraphPropertyBinding(
             property: property,
             definition: propertyDefinition,
@@ -429,6 +482,24 @@ class MathGraphController extends ChangeNotifier {
   bool hasOutgoingLink(String propertyId) {
     return hasGraph &&
         graph.links.any((link) => link.fromPropertyId == propertyId);
+  }
+
+  List<WorkspaceResourceEntry> workspaceResourcesForGraphKinds(
+    List<GraphResourceKind> kinds,
+  ) {
+    final workspaceController = _workspaceController;
+    if (workspaceController == null || !workspaceController.isInitialized) {
+      return const <WorkspaceResourceEntry>[];
+    }
+    final workspaceKinds = kinds.map((kind) {
+      return switch (kind) {
+        GraphResourceKind.image => WorkspaceResourceKind.image,
+        GraphResourceKind.svg => WorkspaceResourceKind.svg,
+        GraphResourceKind.mathGraph => WorkspaceResourceKind.mathGraph,
+        GraphResourceKind.materialGraph => WorkspaceResourceKind.materialGraph,
+      };
+    }).toSet();
+    return workspaceController.resourcesForKinds(workspaceKinds);
   }
 
   void _connectProperties({
@@ -473,8 +544,118 @@ class MathGraphController extends ChangeNotifier {
   void _recompileGraph(GraphDocument updatedGraph) {
     _compileResult = _compiler.compile(
       updatedGraph,
-      options: MathGraphCompileOptions(functionName: updatedGraph.name),
+      options: MathGraphCompileOptions(
+        functionName: updatedGraph.name,
+        resourceId: _currentMathGraphResourceId,
+      ),
     );
+  }
+
+  _GraphSynchronizationResult _synchronizeGraphBackedNodes(
+    GraphDocument source,
+  ) {
+    var changed = false;
+    var nodes = source.nodes.toList(growable: false);
+    var links = source.links.toList(growable: false);
+    for (final node in source.nodes) {
+      if (!_isSubgraphNode(node)) {
+        continue;
+      }
+      final synchronizedNode = _synchronizeNodeProperties(
+        node,
+        definitionForNode(node).properties,
+      );
+      if (!synchronizedNode.changed) {
+        continue;
+      }
+      changed = true;
+      nodes = nodes
+          .map((entry) => entry.id == node.id ? synchronizedNode.node : entry)
+          .toList(growable: false);
+      if (synchronizedNode.removedPropertyIds.isNotEmpty) {
+        links = links
+            .where(
+              (link) =>
+                  !synchronizedNode.removedPropertyIds.contains(
+                    link.fromPropertyId,
+                  ) &&
+                  !synchronizedNode.removedPropertyIds.contains(
+                    link.toPropertyId,
+                  ),
+            )
+            .toList(growable: false);
+      }
+    }
+    if (!changed) {
+      return _GraphSynchronizationResult(graph: source, changed: false);
+    }
+    return _GraphSynchronizationResult(
+      graph: source.copyWith(nodes: nodes, links: links),
+      changed: true,
+    );
+  }
+
+  _NodeSynchronizationResult _synchronizeNodeProperties(
+    GraphNodeDocument node,
+    List<GraphPropertyDefinition> definitions,
+  ) {
+    final existingByKey = {
+      for (final property in node.properties) property.definitionKey: property,
+    };
+    final nextProperties = <GraphNodePropertyData>[];
+    final removedPropertyIds = <String>{
+      for (final property in node.properties) property.id,
+    };
+    var changed = false;
+    for (final definition in definitions) {
+      final existing = existingByKey[definition.key];
+      if (existing != null &&
+          existing.value.valueType == definition.valueType) {
+        nextProperties.add(existing);
+        removedPropertyIds.remove(existing.id);
+        continue;
+      }
+      changed = true;
+      nextProperties.add(
+        GraphNodePropertyData(
+          id: _idFactory.next(),
+          definitionKey: definition.key,
+          value: _catalog.defaultValueForProperty(definition),
+        ),
+      );
+      if (existing != null) {
+        removedPropertyIds.add(existing.id);
+      }
+    }
+
+    if (!changed && nextProperties.length == node.properties.length) {
+      for (var index = 0; index < nextProperties.length; index += 1) {
+        if (nextProperties[index].id != node.properties[index].id) {
+          changed = true;
+          break;
+        }
+      }
+    } else if (nextProperties.length != node.properties.length) {
+      changed = true;
+    }
+
+    return _NodeSynchronizationResult(
+      node: changed ? node.copyWith(properties: nextProperties) : node,
+      changed: changed,
+      removedPropertyIds: removedPropertyIds,
+    );
+  }
+
+  String? get _currentMathGraphResourceId {
+    final resource = _workspaceController?.openedResource;
+    if (resource == null || resource.kind != WorkspaceResourceKind.mathGraph) {
+      return null;
+    }
+    return resource.id;
+  }
+
+  bool _isSubgraphNode(GraphNodeDocument node) {
+    return node.definitionId == mathSubgraphNodeDefinitionId;
   }
 
   String _nextDuplicateName(String baseName) {

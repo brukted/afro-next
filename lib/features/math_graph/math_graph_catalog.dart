@@ -30,6 +30,8 @@ class MathInputNodePropertyKeys {
 }
 
 const mathInputNodePropertyKeys = MathInputNodePropertyKeys();
+const String mathSubgraphNodeDefinitionId = 'math_subgraph_node';
+const String mathSubgraphResourcePropertyKey = 'graph';
 
 class MathInputNodeDescriptor {
   const MathInputNodeDescriptor({
@@ -210,6 +212,7 @@ class MathGraphCatalog {
     ..._controlNodes(),
     ..._variableNodes(),
     ..._samplerNodes(),
+    _subgraphNode(),
     ..._graphOutputNodes(),
   ];
 
@@ -363,11 +366,7 @@ class MathGraphCatalog {
 
   List<MathNodeDefinition> _inputParameterNodes() {
     return mathInputNodeDescriptors
-        .map(
-          (descriptor) => _inputNode(
-            descriptor: descriptor,
-          ),
-        )
+        .map((descriptor) => _inputNode(descriptor: descriptor))
         .toList(growable: false);
   }
 
@@ -399,7 +398,10 @@ class MathGraphCatalog {
         label: 'Vector Float2',
         description: 'Constructs a vec2 from two scalar inputs.',
         outputType: GraphValueType.float2,
-        inputTypes: const <GraphValueType>[GraphValueType.float, GraphValueType.float],
+        inputTypes: const <GraphValueType>[
+          GraphValueType.float,
+          GraphValueType.float,
+        ],
       ),
       _composeNode(
         id: 'vector_float3_node',
@@ -429,11 +431,7 @@ class MathGraphCatalog {
 
   List<MathNodeDefinition> _vectorBreakoutNodes() {
     return mathVectorBreakoutNodeDescriptors
-        .map(
-          (descriptor) => _breakoutNode(
-            descriptor: descriptor,
-          ),
-        )
+        .map((descriptor) => _breakoutNode(descriptor: descriptor))
         .toList(growable: false);
   }
 
@@ -995,7 +993,11 @@ class MathGraphCatalog {
           description: 'Samples a grayscale value from an image input.',
           properties: [
             _descriptorSourceIndex(),
-            _inputSocket(key: 'uv', label: 'UV', valueType: GraphValueType.float2),
+            _inputSocket(
+              key: 'uv',
+              label: 'UV',
+              valueType: GraphValueType.float2,
+            ),
             _outputSocket(
               key: '_output',
               label: 'Output',
@@ -1016,7 +1018,11 @@ class MathGraphCatalog {
           description: 'Samples a color value from an image input.',
           properties: [
             _descriptorSourceIndex(),
-            _inputSocket(key: 'uv', label: 'UV', valueType: GraphValueType.float2),
+            _inputSocket(
+              key: 'uv',
+              label: 'UV',
+              valueType: GraphValueType.float2,
+            ),
             _outputSocket(
               key: '_output',
               label: 'Output',
@@ -1049,6 +1055,38 @@ class MathGraphCatalog {
     ];
   }
 
+  MathNodeDefinition _subgraphNode() {
+    return MathNodeDefinition(
+      schema: GraphNodeSchema(
+        id: mathSubgraphNodeDefinitionId,
+        label: 'Math Subgraph',
+        description:
+            'Runs a referenced workspace math graph and forwards its public inputs.',
+        properties: [
+          GraphPropertyDefinition(
+            key: mathSubgraphResourcePropertyKey,
+            label: 'Math Graph',
+            description: 'Select a workspace math graph to invoke.',
+            propertyType: GraphPropertyType.descriptor,
+            socket: false,
+            valueType: GraphValueType.workspaceResource,
+            valueUnit: GraphValueUnit.path,
+            defaultValue: '',
+            resourceKinds: const [GraphResourceKind.mathGraph],
+          ),
+          _outputSocket(
+            key: '_output',
+            label: 'Output',
+            valueType: GraphValueType.float,
+          ),
+        ],
+      ),
+      compileMetadata: const MathNodeCompileMetadata(
+        kind: MathNodeKind.subgraph,
+      ),
+    );
+  }
+
   List<MathNodeDefinition> _graphOutputNodesForTypes(
     List<GraphValueType> valueTypes,
   ) {
@@ -1060,7 +1098,11 @@ class MathGraphCatalog {
               label: 'Output ${_typeLabel(valueType)}',
               description: 'Declares the final function output.',
               properties: [
-                _inputSocket(key: 'value', label: 'Value', valueType: valueType),
+                _inputSocket(
+                  key: 'value',
+                  label: 'Value',
+                  valueType: valueType,
+                ),
               ],
             ),
             compileMetadata: const MathNodeCompileMetadata(
@@ -1145,7 +1187,11 @@ class MathGraphCatalog {
                       ),
                     ]
                   : [
-                      _inputSocket(key: 'first', label: 'First', valueType: valueType),
+                      _inputSocket(
+                        key: 'first',
+                        label: 'First',
+                        valueType: valueType,
+                      ),
                       _inputSocket(
                         key: 'second',
                         label: 'Second',
@@ -1239,20 +1285,16 @@ class MathGraphCatalog {
             defaultValue: defaultValue,
             isEditable: true,
           ),
-          _outputSocket(
-            key: '_output',
-            label: 'Output',
-            valueType: valueType,
-          ),
+          _outputSocket(key: '_output', label: 'Output', valueType: valueType),
         ],
       ),
-      compileMetadata: const MathNodeCompileMetadata(kind: MathNodeKind.constant),
+      compileMetadata: const MathNodeCompileMetadata(
+        kind: MathNodeKind.constant,
+      ),
     );
   }
 
-  MathNodeDefinition _inputNode({
-    required MathInputNodeDescriptor descriptor,
-  }) {
+  MathNodeDefinition _inputNode({required MathInputNodeDescriptor descriptor}) {
     final unitOptions = _unitOptionsForValueType(descriptor.valueType);
     final supportsRange = _supportsRangeMetadata(descriptor.valueType);
     final supportsStep = _supportsStepMetadata(descriptor.valueType);
@@ -1413,11 +1455,7 @@ class MathGraphCatalog {
               label: 'In ${index + 1}',
               valueType: inputTypes[index],
             ),
-          _outputSocket(
-            key: '_output',
-            label: 'Output',
-            valueType: outputType,
-          ),
+          _outputSocket(key: '_output', label: 'Output', valueType: outputType),
         ],
       ),
       compileMetadata: const MathNodeCompileMetadata(
@@ -1456,11 +1494,7 @@ class MathGraphCatalog {
             label: 'Input',
             valueType: GraphValueType.float4,
           ),
-          _outputSocket(
-            key: '_output',
-            label: 'Output',
-            valueType: outputType,
-          ),
+          _outputSocket(key: '_output', label: 'Output', valueType: outputType),
         ],
       ),
       compileMetadata: const MathNodeCompileMetadata(
@@ -1484,11 +1518,7 @@ class MathGraphCatalog {
         description: description,
         properties: [
           _inputSocket(key: 'value', label: 'Value', valueType: inputType),
-          _outputSocket(
-            key: '_output',
-            label: 'Output',
-            valueType: outputType,
-          ),
+          _outputSocket(key: '_output', label: 'Output', valueType: outputType),
         ],
       ),
       compileMetadata: const MathNodeCompileMetadata(
@@ -1515,11 +1545,7 @@ class MathGraphCatalog {
         properties: [
           _inputSocket(key: 'a', label: 'A', valueType: leftType),
           _inputSocket(key: 'b', label: 'B', valueType: rightType),
-          _outputSocket(
-            key: '_output',
-            label: 'Output',
-            valueType: outputType,
-          ),
+          _outputSocket(key: '_output', label: 'Output', valueType: outputType),
         ],
       ),
       compileMetadata: MathNodeCompileMetadata(
@@ -1544,11 +1570,7 @@ class MathGraphCatalog {
         description: description,
         properties: [
           _inputSocket(key: 'value', label: 'Value', valueType: inputType),
-          _outputSocket(
-            key: '_output',
-            label: 'Output',
-            valueType: outputType,
-          ),
+          _outputSocket(key: '_output', label: 'Output', valueType: outputType),
         ],
       ),
       compileMetadata: MathNodeCompileMetadata(
@@ -1608,7 +1630,9 @@ class MathGraphCatalog {
     );
   }
 
-  static List<EnumChoiceOption> _unitOptionsForValueType(GraphValueType valueType) {
+  static List<EnumChoiceOption> _unitOptionsForValueType(
+    GraphValueType valueType,
+  ) {
     return switch (valueType) {
       GraphValueType.integer => <EnumChoiceOption>[
         EnumChoiceOption(
@@ -1783,17 +1807,7 @@ class MathGraphCatalog {
       case GraphValueType.float4:
         return vmath.Vector4.zero();
       case GraphValueType.float3x3:
-        return const <double>[
-          1,
-          0,
-          0,
-          0,
-          1,
-          0,
-          0,
-          0,
-          1,
-        ];
+        return const <double>[1, 0, 0, 0, 1, 0, 0, 0, 1];
       case GraphValueType.stringValue:
         return '';
       case GraphValueType.workspaceResource:

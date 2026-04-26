@@ -81,6 +81,7 @@ class MaterialGraphController extends ChangeNotifier {
       ..initializeForPreview();
     final mathGraphCompiler = MathGraphCompiler(
       catalog: MathGraphCatalog(IdFactory()),
+      workspaceController: workspaceController,
     );
     return MaterialGraphController(
       idFactory: idFactory,

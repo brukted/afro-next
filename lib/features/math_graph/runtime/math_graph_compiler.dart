@@ -1,5 +1,9 @@
+import 'package:collection/collection.dart';
+
 import '../../graph/models/graph_models.dart';
 import '../../graph/models/graph_schema.dart';
+import '../../workspace/models/workspace_models.dart';
+import '../../workspace/workspace_controller.dart';
 import '../math_graph_catalog.dart';
 import '../math_node_definition.dart';
 import 'math_glsl_emitter.dart';
@@ -9,20 +13,27 @@ class MathGraphCompileOptions {
   const MathGraphCompileOptions({
     this.functionName,
     this.target = MathGraphTarget.generic,
+    this.resourceId,
+    this.resourceReferenceChain = const <String>[],
   });
 
   final String? functionName;
   final MathGraphTarget target;
+  final String? resourceId;
+  final List<String> resourceReferenceChain;
 }
 
 class MathGraphCompiler {
   const MathGraphCompiler({
     required MathGraphCatalog catalog,
+    WorkspaceController? workspaceController,
     MathGlslEmitter emitter = const MathGlslEmitter(),
   }) : _catalog = catalog,
+       _workspaceController = workspaceController,
        _emitter = emitter;
 
   final MathGraphCatalog _catalog;
+  final WorkspaceController? _workspaceController;
   final MathGlslEmitter _emitter;
 
   MathCompileResult compile(
@@ -37,11 +48,17 @@ class MathGraphCompiler {
     final propertyById = <String, GraphNodePropertyData>{};
     final propertyDefinitionById = <String, GraphPropertyDefinition>{};
     final nodeIdByPropertyId = <String, String>{};
+    final subgraphResolutionByNodeId = <String, _ResolvedSubgraphNode>{};
 
     for (final node in graph.nodes) {
       MathNodeDefinition? definition;
       try {
-        definition = _catalog.definitionById(node.definitionId);
+        definition = _definitionForNode(
+          node,
+          options: options,
+          diagnostics: diagnostics,
+          subgraphResolutionByNodeId: subgraphResolutionByNodeId,
+        );
         definitionsByNodeId[node.id] = definition;
       } on StateError {
         diagnostics.add(
@@ -211,6 +228,7 @@ class MathGraphCompiler {
       propertyById: propertyById,
       propertyDefinitionById: propertyDefinitionById,
       linkByInputPropertyId: linkByInputPropertyId,
+      subgraphResolutionByNodeId: subgraphResolutionByNodeId,
       emitter: _emitter,
     );
 
@@ -254,6 +272,9 @@ class MathGraphCompiler {
       statements: List<MathIrStatement>.unmodifiable(state.statements),
       returnExpression: state.returnExpression!,
       topologicalNodeIds: List<String>.unmodifiable(orderedNodeIds),
+      helperFunctionSources: List<String>.unmodifiable(
+        state.helperFunctionSources,
+      ),
     );
     final compiledFunction = _emitter.emit(ir);
 
@@ -261,6 +282,167 @@ class MathGraphCompiler {
       diagnostics: List<MathCompileDiagnostic>.unmodifiable(diagnostics),
       ir: ir,
       compiledFunction: compiledFunction,
+    );
+  }
+
+  MathNodeDefinition _definitionForNode(
+    GraphNodeDocument node, {
+    required MathGraphCompileOptions options,
+    required List<MathCompileDiagnostic> diagnostics,
+    required Map<String, _ResolvedSubgraphNode> subgraphResolutionByNodeId,
+  }) {
+    final definition = _catalog.definitionById(node.definitionId);
+    if (definition.compileMetadata.kind != MathNodeKind.subgraph) {
+      return definition;
+    }
+    final resolution = _resolveSubgraphNode(
+      node,
+      baseDefinition: definition,
+      options: options,
+    );
+    subgraphResolutionByNodeId[node.id] = resolution;
+    diagnostics.addAll(resolution.diagnostics);
+    return resolution.definition;
+  }
+
+  _ResolvedSubgraphNode _resolveSubgraphNode(
+    GraphNodeDocument node, {
+    required MathNodeDefinition baseDefinition,
+    required MathGraphCompileOptions options,
+  }) {
+    final resourceProperty = node.propertyByDefinitionKey(
+      mathSubgraphResourcePropertyKey,
+    );
+    final resourceId = resourceProperty?.value.asWorkspaceResource() ?? '';
+    if (resourceId.isEmpty) {
+      return _ResolvedSubgraphNode(
+        definition: baseDefinition,
+        diagnostics: const <MathCompileDiagnostic>[
+          MathCompileDiagnostic(
+            severity: MathCompileDiagnosticSeverity.error,
+            code: 'missing_subgraph_resource',
+            message: 'Select a math graph for this subgraph node.',
+          ),
+        ],
+      );
+    }
+    if (resourceId == options.resourceId ||
+        options.resourceReferenceChain.contains(resourceId)) {
+      return _ResolvedSubgraphNode(
+        definition: baseDefinition,
+        diagnostics: [
+          MathCompileDiagnostic(
+            severity: MathCompileDiagnosticSeverity.error,
+            code: 'recursive_subgraph_reference',
+            message: 'Recursive math subgraph references are not supported.',
+            nodeId: node.id,
+            propertyId: resourceProperty?.id,
+          ),
+        ],
+      );
+    }
+
+    final workspaceController = _workspaceController;
+    if (workspaceController == null || !workspaceController.isInitialized) {
+      return _ResolvedSubgraphNode(
+        definition: baseDefinition,
+        diagnostics: [
+          MathCompileDiagnostic(
+            severity: MathCompileDiagnosticSeverity.error,
+            code: 'subgraph_workspace_unavailable',
+            message: 'Workspace math graph resolution is unavailable.',
+            nodeId: node.id,
+            propertyId: resourceProperty?.id,
+          ),
+        ],
+      );
+    }
+
+    final resource = workspaceController.resourceById(resourceId);
+    if (resource == null || resource.kind != WorkspaceResourceKind.mathGraph) {
+      return _ResolvedSubgraphNode(
+        definition: baseDefinition,
+        diagnostics: [
+          MathCompileDiagnostic(
+            severity: MathCompileDiagnosticSeverity.error,
+            code: 'invalid_subgraph_resource',
+            message: 'Selected resource `$resourceId` is not a math graph.',
+            nodeId: node.id,
+            propertyId: resourceProperty?.id,
+          ),
+        ],
+      );
+    }
+
+    final document = workspaceController.workspace.mathGraphs.firstWhereOrNull(
+      (entry) => entry.id == resource.documentId,
+    );
+    if (document == null) {
+      return _ResolvedSubgraphNode(
+        definition: baseDefinition,
+        diagnostics: [
+          MathCompileDiagnostic(
+            severity: MathCompileDiagnosticSeverity.error,
+            code: 'missing_subgraph_document',
+            message:
+                'Math graph document for `${resource.name}` could not be found.',
+            nodeId: node.id,
+            propertyId: resourceProperty?.id,
+          ),
+        ],
+      );
+    }
+
+    final nestedResult = compile(
+      document.graph,
+      options: MathGraphCompileOptions(
+        functionName:
+            '${options.functionName ?? document.graph.name}_${node.id}',
+        target: options.target,
+        resourceId: resource.id,
+        resourceReferenceChain: <String>[
+          ...options.resourceReferenceChain,
+          if (options.resourceId != null) options.resourceId!,
+        ],
+      ),
+    );
+    final nestedDiagnostics = [
+      for (final diagnostic in nestedResult.diagnostics)
+        MathCompileDiagnostic(
+          severity: diagnostic.severity,
+          code: diagnostic.code,
+          message: diagnostic.message,
+          nodeId: diagnostic.nodeId ?? node.id,
+          propertyId: diagnostic.propertyId ?? resourceProperty?.id,
+        ),
+    ];
+    final compiledFunction = nestedResult.compiledFunction;
+    if (compiledFunction == null) {
+      return _ResolvedSubgraphNode(
+        definition: baseDefinition,
+        diagnostics: nestedDiagnostics,
+      );
+    }
+
+    final signatureDiagnostics = <MathCompileDiagnostic>[];
+    final resolvedDefinition = MathNodeDefinition(
+      schema: GraphNodeSchema(
+        id: baseDefinition.schema.id,
+        label: baseDefinition.schema.label,
+        description: baseDefinition.schema.description,
+        properties: _subgraphPropertiesForFunction(
+          baseDefinition,
+          compiledFunction,
+          nodeId: node.id,
+          diagnostics: signatureDiagnostics,
+        ),
+      ),
+      compileMetadata: baseDefinition.compileMetadata,
+    );
+    return _ResolvedSubgraphNode(
+      definition: resolvedDefinition,
+      compiledFunction: compiledFunction,
+      diagnostics: [...nestedDiagnostics, ...signatureDiagnostics],
     );
   }
 
@@ -278,6 +460,8 @@ class MathGraphCompiler {
         _compileBuiltin(node, definition, state);
       case MathNodeKind.sampler:
         _compileSampler(node, definition, state);
+      case MathNodeKind.subgraph:
+        _compileSubgraph(node, definition, state);
       case MathNodeKind.operation:
       case MathNodeKind.control:
         _compileOperation(node, definition, state);
@@ -288,6 +472,97 @@ class MathGraphCompiler {
       case MathNodeKind.graphOutput:
         _compileGraphOutput(node, definition, state);
     }
+  }
+
+  void _compileSubgraph(
+    GraphNodeDocument node,
+    MathNodeDefinition definition,
+    _CompilerState state,
+  ) {
+    final resolution = state.subgraphResolutionByNodeId[node.id];
+    if (resolution == null) {
+      state.error(
+        code: 'invalid_subgraph_node',
+        message: 'Subgraph node `${definition.id}` could not be resolved.',
+        nodeId: node.id,
+      );
+      return;
+    }
+
+    final compiledFunction = resolution.compiledFunction;
+    if (compiledFunction == null) {
+      return;
+    }
+
+    final outputDefinition = definition.outputDefinition;
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
+    if (outputDefinition == null || outputProperty == null) {
+      state.error(
+        code: 'invalid_subgraph_output',
+        message: 'Subgraph node `${definition.id}` is missing its output.',
+        nodeId: node.id,
+      );
+      return;
+    }
+
+    final arguments = <MathIrExpression>[];
+    for (final parameter in compiledFunction.parameters) {
+      switch (parameter.kind) {
+        case MathFunctionParameterKind.inputValue:
+          final input = state.resolveInput(
+            node,
+            definition,
+            key: parameter.name,
+          );
+          if (input == null) {
+            return;
+          }
+          arguments.add(input.expression);
+        case MathFunctionParameterKind.builtinValue:
+          final valueType = parameter.valueType;
+          final builtinIdentifier = parameter.rawIdentifier;
+          if (valueType == null || builtinIdentifier == null) {
+            state.error(
+              code: 'invalid_subgraph_builtin',
+              message:
+                  'Subgraph `${definition.id}` exposes an incomplete builtin parameter.',
+              nodeId: node.id,
+            );
+            return;
+          }
+          final builtin = state.useBuiltinParameter(
+            identifier: builtinIdentifier,
+            valueType: valueType,
+          );
+          arguments.add(
+            MathIrReferenceExpression(
+              valueType: valueType,
+              identifier: builtin.name,
+            ),
+          );
+        case MathFunctionParameterKind.sampler2D:
+          state.error(
+            code: 'unsupported_subgraph_sampler',
+            message:
+                'Referenced math graphs that sample textures are not supported inside math subgraphs yet.',
+            nodeId: node.id,
+          );
+          return;
+      }
+    }
+
+    state.addHelperFunctionSource(compiledFunction.source);
+    state.bindNodeValue(
+      outputProperty.id,
+      outputDefinition.valueType,
+      MathIrFunctionCallExpression(
+        valueType: outputDefinition.valueType,
+        functionName: compiledFunction.functionName,
+        arguments: arguments,
+      ),
+    );
   }
 
   void _compileConstant(
@@ -797,12 +1072,12 @@ class MathGraphCompiler {
         .propertyByDefinitionKey(mathInputNodePropertyKeys.unit)
         ?.value
         .enumValue;
-    final normalizedUnitIndex = unitValue == null
-        ? null
-        : unitValue.clamp(0, GraphValueUnit.values.length - 1).toInt();
-    final valueUnit = unitValue == null
+    final normalizedUnitIndex = unitValue
+        ?.clamp(0, GraphValueUnit.values.length - 1)
+        .toInt();
+    final valueUnit = normalizedUnitIndex == null
         ? GraphValueUnit.none
-        : GraphValueUnit.values[normalizedUnitIndex!];
+        : GraphValueUnit.values[normalizedUnitIndex];
     final hasMin =
         node
             .propertyByDefinitionKey(mathInputNodePropertyKeys.hasMin)
@@ -838,6 +1113,86 @@ class MathGraphCompiler {
       step: stepValue,
       valueUnit: valueUnit,
     );
+  }
+
+  List<GraphPropertyDefinition> _subgraphPropertiesForFunction(
+    MathNodeDefinition baseDefinition,
+    MathCompiledFunction function, {
+    required String nodeId,
+    required List<MathCompileDiagnostic> diagnostics,
+  }) {
+    final properties = <GraphPropertyDefinition>[
+      baseDefinition.propertyDefinition(mathSubgraphResourcePropertyKey),
+    ];
+    for (final parameter in function.parameters) {
+      switch (parameter.kind) {
+        case MathFunctionParameterKind.inputValue:
+          final valueType = parameter.valueType;
+          if (valueType == null) {
+            diagnostics.add(
+              MathCompileDiagnostic(
+                severity: MathCompileDiagnosticSeverity.error,
+                code: 'invalid_subgraph_parameter',
+                message:
+                    'Input parameter `${parameter.name}` is missing a concrete value type.',
+                nodeId: nodeId,
+              ),
+            );
+            continue;
+          }
+          properties.add(
+            GraphPropertyDefinition(
+              key: parameter.name,
+              label: parameter.rawIdentifier ?? parameter.name,
+              description:
+                  'Input forwarded to the referenced math graph parameter.',
+              propertyType: GraphPropertyType.input,
+              socket: true,
+              valueType: valueType,
+              valueUnit: parameter.valueUnit,
+              defaultValue: parameter.defaultValue?.valueType == valueType
+                  ? parameter.defaultValue!.unwrap()
+                  : _defaultValueForType(valueType),
+            ),
+          );
+        case MathFunctionParameterKind.builtinValue:
+          if (parameter.rawIdentifier != 'pos' ||
+              parameter.valueType != GraphValueType.float2) {
+            diagnostics.add(
+              MathCompileDiagnostic(
+                severity: MathCompileDiagnosticSeverity.error,
+                code: 'unsupported_subgraph_builtin',
+                message:
+                    'Unsupported builtin `${parameter.rawIdentifier ?? parameter.name}` in referenced math graph.',
+                nodeId: nodeId,
+              ),
+            );
+          }
+        case MathFunctionParameterKind.sampler2D:
+          diagnostics.add(
+            MathCompileDiagnostic(
+              severity: MathCompileDiagnosticSeverity.error,
+              code: 'unsupported_subgraph_sampler',
+              message:
+                  'Referenced math graphs that sample textures are not supported inside math subgraphs yet.',
+              nodeId: nodeId,
+            ),
+          );
+      }
+    }
+    properties.add(
+      GraphPropertyDefinition(
+        key: '_output',
+        label: 'Output',
+        description: 'Result returned by the referenced math graph.',
+        propertyType: GraphPropertyType.output,
+        socket: true,
+        valueType: function.returnType,
+        valueUnit: GraphValueUnit.none,
+        defaultValue: _defaultValueForType(function.returnType),
+      ),
+    );
+    return properties;
   }
 
   List<String> _topologicalOrder({
@@ -1072,6 +1427,40 @@ class MathGraphCompiler {
         throw StateError('Unsupported GLSL type: $valueType');
     }
   }
+
+  Object _defaultValueForType(GraphValueType valueType) {
+    switch (valueType) {
+      case GraphValueType.boolean:
+        return false;
+      case GraphValueType.integer:
+        return 0;
+      case GraphValueType.integer2:
+        return const <int>[0, 0];
+      case GraphValueType.integer3:
+        return const <int>[0, 0, 0];
+      case GraphValueType.integer4:
+        return const <int>[0, 0, 0, 0];
+      case GraphValueType.float:
+        return 0.0;
+      case GraphValueType.float2:
+        return const [0.0, 0.0];
+      case GraphValueType.float3:
+        return const [0.0, 0.0, 0.0];
+      case GraphValueType.float4:
+        return const [0.0, 0.0, 0.0, 0.0];
+      case GraphValueType.float3x3:
+        return const [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+      case GraphValueType.stringValue:
+      case GraphValueType.workspaceResource:
+        return '';
+      case GraphValueType.enumChoice:
+        return 0;
+      case GraphValueType.gradient:
+      case GraphValueType.colorBezierCurve:
+      case GraphValueType.textBlock:
+        throw StateError('Unsupported default value type: $valueType');
+    }
+  }
 }
 
 class _ResolvedNodeValue {
@@ -1079,6 +1468,18 @@ class _ResolvedNodeValue {
 
   final MathIrExpression expression;
   final GraphValueType valueType;
+}
+
+class _ResolvedSubgraphNode {
+  const _ResolvedSubgraphNode({
+    required this.definition,
+    this.compiledFunction,
+    this.diagnostics = const <MathCompileDiagnostic>[],
+  });
+
+  final MathNodeDefinition definition;
+  final MathCompiledFunction? compiledFunction;
+  final List<MathCompileDiagnostic> diagnostics;
 }
 
 class _InputParameterMetadata {
@@ -1135,6 +1536,7 @@ class _CompilerState {
     required this.propertyById,
     required this.propertyDefinitionById,
     required this.linkByInputPropertyId,
+    required this.subgraphResolutionByNodeId,
     required this.emitter,
   }) : functionName = _sanitizeFunctionName(
          options.functionName?.trim().isNotEmpty == true
@@ -1150,11 +1552,13 @@ class _CompilerState {
   final Map<String, GraphNodePropertyData> propertyById;
   final Map<String, GraphPropertyDefinition> propertyDefinitionById;
   final Map<String, GraphLinkDocument> linkByInputPropertyId;
+  final Map<String, _ResolvedSubgraphNode> subgraphResolutionByNodeId;
   final MathGlslEmitter emitter;
   final String functionName;
 
   final List<MathFunctionParameter> parameters = <MathFunctionParameter>[];
   final List<MathIrStatement> statements = <MathIrStatement>[];
+  final List<String> helperFunctionSources = <String>[];
   final Map<String, _ResolvedNodeValue> nodeValuesByPropertyId =
       <String, _ResolvedNodeValue>{};
   final Map<String, MathFunctionParameter> inputParameterByLogicalKey =
@@ -1435,6 +1839,13 @@ class _CompilerState {
         );
       }
     }
+  }
+
+  void addHelperFunctionSource(String source) {
+    if (helperFunctionSources.contains(source)) {
+      return;
+    }
+    helperFunctionSources.add(source);
   }
 
   String nextTemporaryName() => 't${_temporaryIndex++}';

@@ -105,7 +105,10 @@ class _MathGraphInputsCard extends StatelessWidget {
               ...nodes.map((node) {
                 final definition = controller.definitionForNode(node);
                 final identifier =
-                    node.propertyByDefinitionKey('identifier')?.value.stringValue ??
+                    node
+                        .propertyByDefinitionKey('identifier')
+                        ?.value
+                        .stringValue ??
                     node.name;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 6),
@@ -423,6 +426,11 @@ class _MathPropertyField extends StatelessWidget {
             value: GraphValueData.stringValue(value),
           ),
         ),
+        GraphValueType.workspaceResource => _MathWorkspaceResourcePickerField(
+          controller: controller,
+          nodeId: nodeId,
+          property: property,
+        ),
         GraphValueType.enumChoice => PropertyEditorEnumChoiceEditor(
           currentValue: property.valueData.enumValue ?? property.value as int,
           options: definition.enumOptions,
@@ -436,6 +444,59 @@ class _MathPropertyField extends StatelessWidget {
           'Unsupported editor for ${definition.valueType.name}.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+      },
+    );
+  }
+}
+
+class _MathWorkspaceResourcePickerField extends StatelessWidget {
+  const _MathWorkspaceResourcePickerField({
+    required this.controller,
+    required this.nodeId,
+    required this.property,
+  });
+
+  final MathGraphController controller;
+  final String nodeId;
+  final GraphPropertyBinding property;
+
+  @override
+  Widget build(BuildContext context) {
+    final resources = controller.workspaceResourcesForGraphKinds(
+      property.definition.resourceKinds,
+    );
+    final currentValue = property.valueData.asWorkspaceResource();
+    final hasCurrentValue =
+        currentValue.isNotEmpty &&
+        resources.any((resource) => resource.id == currentValue);
+    final dropdownValue = hasCurrentValue ? currentValue : '';
+
+    return DropdownButtonFormField<String>(
+      initialValue: dropdownValue,
+      isDense: true,
+      isExpanded: true,
+      itemHeight: kMinInteractiveDimension,
+      menuMaxHeight: 320,
+      borderRadius: BorderRadius.circular(propertyEditorCornerRadius),
+      dropdownColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      decoration: propertyEditorDenseInputDecoration(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      ),
+      items: [
+        const DropdownMenuItem<String>(value: '', child: Text('None')),
+        ...resources.map(
+          (resource) => DropdownMenuItem<String>(
+            value: resource.id,
+            child: Text(resource.name, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+      ],
+      onChanged: (nextValue) {
+        controller.updatePropertyValue(
+          nodeId: nodeId,
+          propertyId: property.id,
+          value: GraphValueData.workspaceResource(nextValue ?? ''),
+        );
       },
     );
   }

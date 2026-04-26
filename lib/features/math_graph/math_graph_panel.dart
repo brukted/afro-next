@@ -675,6 +675,8 @@ IconData _iconForDefinition(MathNodeDefinition definition) {
       return Icons.gps_fixed_outlined;
     case MathNodeKind.sampler:
       return Icons.texture_outlined;
+    case MathNodeKind.subgraph:
+      return Icons.account_tree_outlined;
     case MathNodeKind.operation:
       return Icons.functions_outlined;
     case MathNodeKind.variableSet:
@@ -699,6 +701,8 @@ Color _colorForDefinition(BuildContext context, MathNodeDefinition definition) {
       return colorScheme.tertiary;
     case MathNodeKind.sampler:
       return Colors.orange.shade300;
+    case MathNodeKind.subgraph:
+      return Colors.indigo.shade300;
     case MathNodeKind.operation:
       return Colors.cyan.shade300;
     case MathNodeKind.variableSet:
@@ -761,6 +765,8 @@ String _categoryLabel(MathNodeKind kind) {
       return 'Builtins';
     case MathNodeKind.sampler:
       return 'Samplers';
+    case MathNodeKind.subgraph:
+      return 'Subgraphs';
     case MathNodeKind.operation:
       return 'Operations';
     case MathNodeKind.variableSet:
