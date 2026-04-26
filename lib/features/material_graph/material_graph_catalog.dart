@@ -10,6 +10,50 @@ import 'material_output_size.dart';
 const String materialTexelGraphNodeDefinitionId = 'texel_graph_node';
 const String materialTexelGraphResourcePropertyKey = 'graph';
 
+class MaterialInputNodePropertyKeys {
+  const MaterialInputNodePropertyKeys({
+    this.value = 'value',
+    this.resource = 'resource',
+    this.hasMin = 'hasMin',
+    this.min = 'min',
+    this.hasMax = 'hasMax',
+    this.max = 'max',
+    this.step = 'step',
+    this.output = '_output',
+  });
+
+  final String value;
+  final String resource;
+  final String hasMin;
+  final String min;
+  final String hasMax;
+  final String max;
+  final String step;
+  final String output;
+}
+
+const materialInputNodePropertyKeys = MaterialInputNodePropertyKeys();
+
+class MaterialInputNodeDescriptor {
+  const MaterialInputNodeDescriptor({
+    required this.definitionId,
+    required this.label,
+    required this.description,
+    required this.icon,
+    required this.accentColorHex,
+    required this.valueType,
+    required this.defaultUnit,
+  });
+
+  final String definitionId;
+  final String label;
+  final String description;
+  final IconData icon;
+  final String accentColorHex;
+  final GraphValueType valueType;
+  final GraphValueUnit defaultUnit;
+}
+
 class MaterialGraphCatalog {
   MaterialGraphCatalog(this._idFactory);
 
@@ -68,6 +112,135 @@ class MaterialGraphCatalog {
     EnumChoiceOption(id: 'add', label: 'Add', value: 1),
     EnumChoiceOption(id: 'max', label: 'Max', value: 2),
     EnumChoiceOption(id: 'add_sub', label: 'Add Sub', value: 3),
+  ];
+
+  static const List<MaterialInputNodeDescriptor> _inputNodeDescriptors = [
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_integer_node',
+      label: 'Input Integer',
+      description: 'Provides an integer graph input for material parameters.',
+      icon: Icons.pin_outlined,
+      accentColorHex: '#FFB053',
+      valueType: GraphValueType.integer,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_integer2_node',
+      label: 'Input Integer2',
+      description: 'Provides an ivec2 graph input for material parameters.',
+      icon: Icons.grid_view_outlined,
+      accentColorHex: '#FFB053',
+      valueType: GraphValueType.integer2,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_integer3_node',
+      label: 'Input Integer3',
+      description: 'Provides an ivec3 graph input for material parameters.',
+      icon: Icons.view_in_ar_outlined,
+      accentColorHex: '#FFB053',
+      valueType: GraphValueType.integer3,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_integer4_node',
+      label: 'Input Integer4',
+      description: 'Provides an ivec4 graph input for material parameters.',
+      icon: Icons.dashboard_customize_outlined,
+      accentColorHex: '#FFB053',
+      valueType: GraphValueType.integer4,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_float_node',
+      label: 'Input Float',
+      description: 'Provides a float graph input for material parameters.',
+      icon: Icons.tune_outlined,
+      accentColorHex: '#6AD6FF',
+      valueType: GraphValueType.float,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_float2_node',
+      label: 'Input Float2',
+      description: 'Provides a vec2 graph input for material parameters.',
+      icon: Icons.open_with_outlined,
+      accentColorHex: '#6AD6FF',
+      valueType: GraphValueType.float2,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_float3_node',
+      label: 'Input Float3',
+      description: 'Provides a vec3 graph input for material parameters.',
+      icon: Icons.deblur_outlined,
+      accentColorHex: '#6AD6FF',
+      valueType: GraphValueType.float3,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_color_node',
+      label: 'Input Color',
+      description: 'Provides a color graph input for material parameters.',
+      icon: Icons.palette_outlined,
+      accentColorHex: '#3DD6B0',
+      valueType: GraphValueType.float4,
+      defaultUnit: GraphValueUnit.color,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_boolean_node',
+      label: 'Input Boolean',
+      description: 'Provides a boolean graph input for material parameters.',
+      icon: Icons.toggle_on_outlined,
+      accentColorHex: '#FFB053',
+      valueType: GraphValueType.boolean,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_matrix3_node',
+      label: 'Input Matrix3',
+      description: 'Provides a mat3 graph input for material parameters.',
+      icon: Icons.grid_3x3_outlined,
+      accentColorHex: '#A78BFA',
+      valueType: GraphValueType.float3x3,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_string_node',
+      label: 'Input String',
+      description: 'Provides a string graph input for material parameters.',
+      icon: Icons.short_text_outlined,
+      accentColorHex: '#FF9A62',
+      valueType: GraphValueType.stringValue,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_gradient_node',
+      label: 'Input Gradient',
+      description: 'Provides a gradient graph input for material parameters.',
+      icon: Icons.gradient_outlined,
+      accentColorHex: '#FF78B9',
+      valueType: GraphValueType.gradient,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_curve_node',
+      label: 'Input Curve',
+      description: 'Provides a color-curve graph input for material parameters.',
+      icon: Icons.timeline_outlined,
+      accentColorHex: '#FF7D7D',
+      valueType: GraphValueType.colorBezierCurve,
+      defaultUnit: GraphValueUnit.none,
+    ),
+    MaterialInputNodeDescriptor(
+      definitionId: 'input_text_node',
+      label: 'Input Text',
+      description: 'Provides a text graph input for material parameters.',
+      icon: Icons.text_fields_outlined,
+      accentColorHex: '#FFB4A2',
+      valueType: GraphValueType.textBlock,
+      defaultUnit: GraphValueUnit.none,
+    ),
   ];
 
   late final List<MaterialNodeDefinition>
@@ -1050,176 +1223,42 @@ class MaterialGraphCatalog {
   }
 
   List<MaterialNodeDefinition> _inputNodes() {
-    return <MaterialNodeDefinition>[
-      _valueInputNode(
-        id: 'input_integer_node',
-        label: 'Input Integer',
-        description: 'Provides an integer graph input for material parameters.',
-        icon: Icons.pin_outlined,
-        accentColor: _color('#FFB053'),
-        valueType: GraphValueType.integer,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: 0,
-      ),
-      _valueInputNode(
-        id: 'input_integer2_node',
-        label: 'Input Integer2',
-        description: 'Provides an ivec2 graph input for material parameters.',
-        icon: Icons.grid_view_outlined,
-        accentColor: _color('#FFB053'),
-        valueType: GraphValueType.integer2,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: const <int>[0, 0],
-      ),
-      _valueInputNode(
-        id: 'input_integer3_node',
-        label: 'Input Integer3',
-        description: 'Provides an ivec3 graph input for material parameters.',
-        icon: Icons.view_in_ar_outlined,
-        accentColor: _color('#FFB053'),
-        valueType: GraphValueType.integer3,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: const <int>[0, 0, 0],
-      ),
-      _valueInputNode(
-        id: 'input_integer4_node',
-        label: 'Input Integer4',
-        description: 'Provides an ivec4 graph input for material parameters.',
-        icon: Icons.dashboard_customize_outlined,
-        accentColor: _color('#FFB053'),
-        valueType: GraphValueType.integer4,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: const <int>[0, 0, 0, 0],
-      ),
-      _valueInputNode(
-        id: 'input_float_node',
-        label: 'Input Float',
-        description: 'Provides a float graph input for material parameters.',
-        icon: Icons.tune_outlined,
-        accentColor: _color('#6AD6FF'),
-        valueType: GraphValueType.float,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: 0.0,
-      ),
-      _valueInputNode(
-        id: 'input_float2_node',
-        label: 'Input Float2',
-        description: 'Provides a vec2 graph input for material parameters.',
-        icon: Icons.open_with_outlined,
-        accentColor: _color('#6AD6FF'),
-        valueType: GraphValueType.float2,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: vmath.Vector2.zero(),
-      ),
-      _valueInputNode(
-        id: 'input_float3_node',
-        label: 'Input Float3',
-        description: 'Provides a vec3 graph input for material parameters.',
-        icon: Icons.deblur_outlined,
-        accentColor: _color('#6AD6FF'),
-        valueType: GraphValueType.float3,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: vmath.Vector3.zero(),
-      ),
-      _valueInputNode(
-        id: 'input_color_node',
-        label: 'Input Color',
-        description: 'Provides a color graph input for material parameters.',
-        icon: Icons.palette_outlined,
-        accentColor: _color('#3DD6B0'),
-        valueType: GraphValueType.float4,
-        valueUnit: GraphValueUnit.color,
-        defaultValue: _white(),
-        defaultResourceKinds: const [
-          GraphResourceKind.image,
-          GraphResourceKind.svg,
-        ],
-      ),
-      _valueInputNode(
-        id: 'input_boolean_node',
-        label: 'Input Boolean',
-        description: 'Provides a boolean graph input for material parameters.',
-        icon: Icons.toggle_on_outlined,
-        accentColor: _color('#FFB053'),
-        valueType: GraphValueType.boolean,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: false,
-      ),
-      _valueInputNode(
-        id: 'input_matrix3_node',
-        label: 'Input Matrix3',
-        description: 'Provides a mat3 graph input for material parameters.',
-        icon: Icons.grid_3x3_outlined,
-        accentColor: _color('#A78BFA'),
-        valueType: GraphValueType.float3x3,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: _identityMatrix3(),
-      ),
-      _valueInputNode(
-        id: 'input_string_node',
-        label: 'Input String',
-        description: 'Provides a string graph input for material parameters.',
-        icon: Icons.short_text_outlined,
-        accentColor: _color('#FF9A62'),
-        valueType: GraphValueType.stringValue,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: '',
-      ),
-      _valueInputNode(
-        id: 'input_gradient_node',
-        label: 'Input Gradient',
-        description: 'Provides a gradient graph input for material parameters.',
-        icon: Icons.gradient_outlined,
-        accentColor: _color('#FF78B9'),
-        valueType: GraphValueType.gradient,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: _defaultGradient(),
-      ),
-      _valueInputNode(
-        id: 'input_curve_node',
-        label: 'Input Curve',
-        description:
-            'Provides a color-curve graph input for material parameters.',
-        icon: Icons.timeline_outlined,
-        accentColor: _color('#FF7D7D'),
-        valueType: GraphValueType.colorBezierCurve,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: GraphColorCurveData.identity(),
-      ),
-      _valueInputNode(
-        id: 'input_text_node',
-        label: 'Input Text',
-        description: 'Provides a text graph input for material parameters.',
-        icon: Icons.text_fields_outlined,
-        accentColor: _color('#FFB4A2'),
-        valueType: GraphValueType.textBlock,
-        valueUnit: GraphValueUnit.none,
-        defaultValue: GraphTextData.defaults(),
-      ),
-    ];
+    return _inputNodeDescriptors
+        .map(
+          (descriptor) => _valueInputNode(
+            descriptor: descriptor,
+            defaultValue: _defaultValueForType(descriptor.valueType),
+            defaultResourceKinds: descriptor.definitionId == 'input_color_node'
+                ? const [GraphResourceKind.image, GraphResourceKind.svg]
+                : const <GraphResourceKind>[],
+          ),
+        )
+        .toList(growable: false);
   }
 
   String? inputDefinitionIdForProperty(GraphPropertyDefinition definition) {
-    return switch (definition.valueType) {
-      GraphValueType.integer => 'input_integer_node',
-      GraphValueType.integer2 => 'input_integer2_node',
-      GraphValueType.integer3 => 'input_integer3_node',
-      GraphValueType.integer4 => 'input_integer4_node',
-      GraphValueType.float => 'input_float_node',
-      GraphValueType.float2 => 'input_float2_node',
-      GraphValueType.float3 => 'input_float3_node',
-      GraphValueType.float4
-          when definition.socketTransport == GraphSocketTransport.texture ||
-              definition.valueUnit == GraphValueUnit.color =>
-        'input_color_node',
-      GraphValueType.boolean => 'input_boolean_node',
-      GraphValueType.float3x3 => 'input_matrix3_node',
-      GraphValueType.stringValue => 'input_string_node',
-      GraphValueType.gradient => 'input_gradient_node',
-      GraphValueType.colorBezierCurve => 'input_curve_node',
-      GraphValueType.textBlock => 'input_text_node',
-      _ => null,
-    };
+    if (definition.valueType == GraphValueType.float4 &&
+        (definition.socketTransport == GraphSocketTransport.texture ||
+            definition.valueUnit == GraphValueUnit.color)) {
+      for (final descriptor in _inputNodeDescriptors) {
+        if (descriptor.definitionId == 'input_color_node') {
+          return descriptor.definitionId;
+        }
+      }
+      return null;
+    }
+    for (final descriptor in _inputNodeDescriptors) {
+      if (descriptor.valueType == definition.valueType &&
+          descriptor.defaultUnit == definition.valueUnit) {
+        return descriptor.definitionId;
+      }
+    }
+    for (final descriptor in _inputNodeDescriptors) {
+      if (descriptor.valueType == definition.valueType) {
+        return descriptor.definitionId;
+      }
+    }
+    return null;
   }
 
   GraphValueData defaultValueForProperty(GraphPropertyDefinition definition) {
@@ -1638,68 +1677,127 @@ class MaterialGraphCatalog {
   }
 
   static MaterialNodeDefinition _valueInputNode({
-    required String id,
-    required String label,
-    required String description,
-    required IconData icon,
-    required vmath.Vector4 accentColor,
-    required GraphValueType valueType,
-    required GraphValueUnit valueUnit,
+    required MaterialInputNodeDescriptor descriptor,
     required Object defaultValue,
     List<GraphResourceKind> defaultResourceKinds = const <GraphResourceKind>[],
     List<GraphResourceKind> resourceKinds = const <GraphResourceKind>[],
     List<EnumChoiceOption> enumOptions = const <EnumChoiceOption>[],
   }) {
+    final supportsRange = _supportsRangeMetadata(descriptor.valueType);
+    final supportsStep = _supportsStepMetadata(descriptor.valueType);
     return MaterialNodeDefinition(
       schema: GraphNodeSchema(
-        id: id,
-        label: label,
-        description: description,
+        id: descriptor.definitionId,
+        label: descriptor.label,
+        description: descriptor.description,
         properties: [
           GraphPropertyDefinition(
-            key: 'value',
+            key: materialInputNodePropertyKeys.value,
             label: 'Default',
             description: 'Fallback value used when the graph input is unbound.',
             propertyType: GraphPropertyType.input,
             socket: false,
-            valueType: valueType,
-            valueUnit: valueUnit,
+            valueType: descriptor.valueType,
+            valueUnit: descriptor.defaultUnit,
             defaultValue: defaultValue,
             isEditable: true,
             enumOptions: enumOptions,
             resourceKinds: resourceKinds,
           ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: materialInputNodePropertyKeys.hasMin,
+              label: 'Has Min',
+              description: 'Enable a soft minimum hint for this graph input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.boolean,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: false,
+              isEditable: true,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: materialInputNodePropertyKeys.min,
+              label: 'Min',
+              description: 'Soft minimum value for this graph input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: descriptor.valueType,
+              valueUnit: descriptor.defaultUnit,
+              defaultValue: _defaultValueForType(descriptor.valueType),
+              isEditable: true,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: materialInputNodePropertyKeys.hasMax,
+              label: 'Has Max',
+              description: 'Enable a soft maximum hint for this graph input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.boolean,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: false,
+              isEditable: true,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: materialInputNodePropertyKeys.max,
+              label: 'Max',
+              description: 'Soft maximum value for this graph input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: descriptor.valueType,
+              valueUnit: descriptor.defaultUnit,
+              defaultValue: _defaultMaxValueForType(descriptor.valueType),
+              isEditable: true,
+            ),
+          if (supportsStep)
+            GraphPropertyDefinition(
+              key: materialInputNodePropertyKeys.step,
+              label: 'Step',
+              description: 'Suggested editor increment for this graph input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.float,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: _defaultStepForType(descriptor.valueType),
+              isEditable: true,
+              min: 0.0001,
+              max: 1024,
+              step: 0.01,
+            ),
           if (defaultResourceKinds.isNotEmpty)
             _resourceDescriptorInput(
-              'resource',
+              materialInputNodePropertyKeys.resource,
               'Default Resource',
               bindingKey: 'MainTex',
               resourceKinds: defaultResourceKinds,
             ),
           _outputSocket(
-            key: '_output',
+            key: materialInputNodePropertyKeys.output,
             label: 'Output',
-            valueType: valueType,
-            valueUnit: valueUnit,
+            valueType: descriptor.valueType,
+            valueUnit: descriptor.defaultUnit,
             socketTransport: _inputSocketTransportForValueType(
-              valueType: valueType,
-              valueUnit: valueUnit,
+              valueType: descriptor.valueType,
+              valueUnit: descriptor.defaultUnit,
             ),
             enumOptions: enumOptions,
             resourceKinds: resourceKinds,
           ),
         ],
       ),
-      icon: icon,
-      accentColor: accentColor,
+      icon: descriptor.icon,
+      accentColor: _color(descriptor.accentColorHex),
       runtime: const MaterialNodeRuntimeDefinition.fragment(
         shaderAssetId: 'material/image-basic.frag',
       ),
       kind: MaterialNodeKind.input,
-      inputValuePropertyKey: 'value',
+      inputValuePropertyKey: materialInputNodePropertyKeys.value,
       inputResourcePropertyKey: defaultResourceKinds.isEmpty
           ? null
-          : 'resource',
+          : materialInputNodePropertyKeys.resource,
     );
   }
 
@@ -1790,5 +1888,66 @@ class MaterialGraphCatalog {
       case GraphValueType.textBlock:
         return GraphTextData.defaults();
     }
+  }
+
+  static bool _supportsRangeMetadata(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer ||
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 ||
+      GraphValueType.float ||
+      GraphValueType.float2 ||
+      GraphValueType.float3 ||
+      GraphValueType.float4 => true,
+      _ => false,
+    };
+  }
+
+  static bool _supportsStepMetadata(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer ||
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 ||
+      GraphValueType.float ||
+      GraphValueType.float2 ||
+      GraphValueType.float3 ||
+      GraphValueType.float4 => true,
+      _ => false,
+    };
+  }
+
+  static Object _defaultMaxValueForType(GraphValueType valueType) {
+    switch (valueType) {
+      case GraphValueType.integer:
+        return 1;
+      case GraphValueType.integer2:
+        return const <int>[1, 1];
+      case GraphValueType.integer3:
+        return const <int>[1, 1, 1];
+      case GraphValueType.integer4:
+        return const <int>[1, 1, 1, 1];
+      case GraphValueType.float:
+        return 1.0;
+      case GraphValueType.float2:
+        return vmath.Vector2.all(1.0);
+      case GraphValueType.float3:
+        return vmath.Vector3.all(1.0);
+      case GraphValueType.float4:
+        return vmath.Vector4.all(1.0);
+      default:
+        return _defaultValueForType(valueType);
+    }
+  }
+
+  static double _defaultStepForType(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer ||
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 => 1.0,
+      _ => 0.01,
+    };
   }
 }

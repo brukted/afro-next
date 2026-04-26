@@ -663,6 +663,40 @@ class MaterialGraphController extends ChangeNotifier {
             if (entry.definitionKey == inputValueKey) {
               return entry.copyWith(value: property.value.deepCopy());
             }
+            if (entry.definitionKey == materialInputNodePropertyKeys.hasMin) {
+              return entry.copyWith(
+                value: GraphValueData.boolean(propertyDefinition.min != null),
+              );
+            }
+            if (entry.definitionKey == materialInputNodePropertyKeys.min &&
+                propertyDefinition.min != null) {
+              return entry.copyWith(
+                value: _metadataValueForNumericBound(
+                  valueType: propertyDefinition.valueType,
+                  numericValue: propertyDefinition.min!,
+                ),
+              );
+            }
+            if (entry.definitionKey == materialInputNodePropertyKeys.hasMax) {
+              return entry.copyWith(
+                value: GraphValueData.boolean(propertyDefinition.max != null),
+              );
+            }
+            if (entry.definitionKey == materialInputNodePropertyKeys.max &&
+                propertyDefinition.max != null) {
+              return entry.copyWith(
+                value: _metadataValueForNumericBound(
+                  valueType: propertyDefinition.valueType,
+                  numericValue: propertyDefinition.max!,
+                ),
+              );
+            }
+            if (entry.definitionKey == materialInputNodePropertyKeys.step &&
+                propertyDefinition.step != null) {
+              return entry.copyWith(
+                value: GraphValueData.float(propertyDefinition.step!),
+              );
+            }
             return entry;
           })
           .toList(growable: false),
@@ -703,6 +737,35 @@ class MaterialGraphController extends ChangeNotifier {
       graph.copyWith(nodes: [...graph.nodes, inputNode], links: nextLinks),
       dirtyRootNodeIds: [inputNode.id, node.id],
     );
+  }
+
+  GraphValueData _metadataValueForNumericBound({
+    required GraphValueType valueType,
+    required num numericValue,
+  }) {
+    return switch (valueType) {
+      GraphValueType.integer => GraphValueData.integer(numericValue.toInt()),
+      GraphValueType.integer2 => GraphValueData.integer2(
+        List<int>.filled(2, numericValue.toInt()),
+      ),
+      GraphValueType.integer3 => GraphValueData.integer3(
+        List<int>.filled(3, numericValue.toInt()),
+      ),
+      GraphValueType.integer4 => GraphValueData.integer4(
+        List<int>.filled(4, numericValue.toInt()),
+      ),
+      GraphValueType.float => GraphValueData.float(numericValue.toDouble()),
+      GraphValueType.float2 => GraphValueData.float2(
+        Vector2.all(numericValue.toDouble()),
+      ),
+      GraphValueType.float3 => GraphValueData.float3(
+        Vector3.all(numericValue.toDouble()),
+      ),
+      GraphValueType.float4 => GraphValueData.float4(
+        Vector4.all(numericValue.toDouble()),
+      ),
+      _ => GraphValueData.float(numericValue.toDouble()),
+    };
   }
 
   void setNodePosition(String nodeId, Vector2 position) {

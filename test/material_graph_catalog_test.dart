@@ -178,6 +178,20 @@ void main() {
       GraphValueUnit.color,
     );
     expect(
+      catalog.definitionById('input_float_node').properties.map((property) => property.key),
+      [
+        'outputSizeMode',
+        'outputSizeValue',
+        'value',
+        'hasMin',
+        'min',
+        'hasMax',
+        'max',
+        'step',
+        '_output',
+      ],
+    );
+    expect(
       inputGradient.propertyDefinition('_output').socketTransport,
       GraphSocketTransport.texture,
     );

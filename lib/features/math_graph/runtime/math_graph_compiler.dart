@@ -297,7 +297,12 @@ class MathGraphCompiler {
   ) {
     final property = node.propertyByDefinitionKey('value');
     final outputDefinition = definition.outputDefinition;
-    if (property == null || outputDefinition == null) {
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
+    if (property == null ||
+        outputDefinition == null ||
+        outputProperty == null) {
       state.error(
         code: 'invalid_constant_node',
         message:
@@ -310,7 +315,11 @@ class MathGraphCompiler {
       valueType: outputDefinition.valueType,
       value: property.value.deepCopy(),
     );
-    state.bindNodeValue(node.id, outputDefinition.valueType, expression);
+    state.bindNodeValue(
+      outputProperty.id,
+      outputDefinition.valueType,
+      expression,
+    );
   }
 
   void _compileInputParameter(
@@ -319,20 +328,31 @@ class MathGraphCompiler {
     _CompilerState state,
   ) {
     final outputDefinition = definition.outputDefinition;
+    final outputProperty = node.propertyByDefinitionKey(
+      mathInputNodePropertyKeys.output,
+    );
     final identifier = _readIdentifier(node, definition, state);
-    if (outputDefinition == null || identifier == null) {
+    if (outputDefinition == null ||
+        outputProperty == null ||
+        identifier == null) {
       return;
     }
+    final metadata = _readInputMetadata(node, outputDefinition.valueType);
     final parameter = state.useInputParameter(
       identifier: identifier,
       valueType: outputDefinition.valueType,
       nodeId: node.id,
+      defaultValue: metadata.defaultValue,
+      minValue: metadata.minValue,
+      maxValue: metadata.maxValue,
+      step: metadata.step,
+      valueUnit: metadata.valueUnit,
     );
     if (parameter == null) {
       return;
     }
     state.storeNodeValue(
-      node.id,
+      outputProperty.id,
       outputDefinition.valueType,
       MathIrReferenceExpression(
         valueType: outputDefinition.valueType,
@@ -347,8 +367,13 @@ class MathGraphCompiler {
     _CompilerState state,
   ) {
     final outputDefinition = definition.outputDefinition;
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
     final builtinIdentifier = definition.compileMetadata.builtinIdentifier;
-    if (outputDefinition == null || builtinIdentifier == null) {
+    if (outputDefinition == null ||
+        outputProperty == null ||
+        builtinIdentifier == null) {
       state.error(
         code: 'invalid_builtin_node',
         message: 'Builtin node `${definition.id}` is misconfigured.',
@@ -361,7 +386,7 @@ class MathGraphCompiler {
       valueType: outputDefinition.valueType,
     );
     state.storeNodeValue(
-      node.id,
+      outputProperty.id,
       outputDefinition.valueType,
       MathIrReferenceExpression(
         valueType: outputDefinition.valueType,
@@ -376,8 +401,13 @@ class MathGraphCompiler {
     _CompilerState state,
   ) {
     final outputDefinition = definition.outputDefinition;
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
     final samplerKey = definition.compileMetadata.samplerIndexPropertyKey;
-    if (outputDefinition == null || samplerKey == null) {
+    if (outputDefinition == null ||
+        outputProperty == null ||
+        samplerKey == null) {
       state.error(
         code: 'invalid_sampler_node',
         message: 'Sampler node `${definition.id}` is misconfigured.',
@@ -399,7 +429,7 @@ class MathGraphCompiler {
     final sourceIndex = sourceIndexProperty.value.integerValue ?? 0;
     final sampler = state.useSamplerParameter(sourceIndex);
     state.bindNodeValue(
-      node.id,
+      outputProperty.id,
       outputDefinition.valueType,
       MathIrTextureSampleExpression(
         valueType: outputDefinition.valueType,
@@ -418,9 +448,46 @@ class MathGraphCompiler {
     MathNodeDefinition definition,
     _CompilerState state,
   ) {
-    final outputDefinition = definition.outputDefinition;
     final operation = definition.compileMetadata.operation;
-    if (outputDefinition == null || operation == null) {
+    if (operation == null) {
+      state.error(
+        code: 'invalid_operation_node',
+        message: 'Operation node `${definition.id}` is misconfigured.',
+        nodeId: node.id,
+      );
+      return;
+    }
+
+    if (operation == MathNodeOperation.breakout) {
+      final input = state.resolveInput(node, definition, key: 'input');
+      if (input == null) {
+        return;
+      }
+      for (final property in definition.properties.where(
+        (property) => property.propertyType == GraphPropertyType.output,
+      )) {
+        final outputProperty = node.propertyByDefinitionKey(property.key);
+        if (outputProperty == null) {
+          continue;
+        }
+        state.storeNodeValue(
+          outputProperty.id,
+          property.valueType,
+          MathIrSwizzleExpression(
+            valueType: property.valueType,
+            input: input.expression,
+            components: property.key,
+          ),
+        );
+      }
+      return;
+    }
+
+    final outputDefinition = definition.outputDefinition;
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
+    if (outputDefinition == null || outputProperty == null) {
       state.error(
         code: 'invalid_operation_node',
         message: 'Operation node `${definition.id}` is misconfigured.',
@@ -589,11 +656,15 @@ class MathGraphCompiler {
           return;
         }
         expression = second.expression;
+      case MathNodeOperation.breakout:
+        return;
     }
 
-    if (expression != null) {
-      state.bindNodeValue(node.id, outputDefinition.valueType, expression);
-    }
+    state.bindNodeValue(
+      outputProperty.id,
+      outputDefinition.valueType,
+      expression,
+    );
   }
 
   void _compileVariableSet(
@@ -603,8 +674,14 @@ class MathGraphCompiler {
   ) {
     final identifier = _readIdentifier(node, definition, state);
     final outputDefinition = definition.outputDefinition;
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
     final value = state.resolveInput(node, definition, key: 'value');
-    if (identifier == null || outputDefinition == null || value == null) {
+    if (identifier == null ||
+        outputDefinition == null ||
+        outputProperty == null ||
+        value == null) {
       return;
     }
     final variable = state.setVariable(
@@ -617,7 +694,7 @@ class MathGraphCompiler {
       return;
     }
     state.storeNodeValue(
-      node.id,
+      outputProperty.id,
       outputDefinition.valueType,
       MathIrReferenceExpression(
         valueType: outputDefinition.valueType,
@@ -633,7 +710,12 @@ class MathGraphCompiler {
   ) {
     final identifier = _readIdentifier(node, definition, state);
     final outputDefinition = definition.outputDefinition;
-    if (identifier == null || outputDefinition == null) {
+    final outputProperty = node.propertyByDefinitionKey(
+      definition.compileMetadata.outputPropertyKey,
+    );
+    if (identifier == null ||
+        outputDefinition == null ||
+        outputProperty == null) {
       return;
     }
     final variable = state.getVariable(
@@ -645,7 +727,7 @@ class MathGraphCompiler {
       return;
     }
     state.storeNodeValue(
-      node.id,
+      outputProperty.id,
       outputDefinition.valueType,
       MathIrReferenceExpression(
         valueType: outputDefinition.valueType,
@@ -702,6 +784,60 @@ class MathGraphCompiler {
       return null;
     }
     return identifier;
+  }
+
+  _InputParameterMetadata _readInputMetadata(
+    GraphNodeDocument node,
+    GraphValueType valueType,
+  ) {
+    final defaultValue = node
+        .propertyByDefinitionKey(mathInputNodePropertyKeys.defaultValue)
+        ?.value;
+    final unitValue = node
+        .propertyByDefinitionKey(mathInputNodePropertyKeys.unit)
+        ?.value
+        .enumValue;
+    final normalizedUnitIndex = unitValue == null
+        ? null
+        : unitValue.clamp(0, GraphValueUnit.values.length - 1).toInt();
+    final valueUnit = unitValue == null
+        ? GraphValueUnit.none
+        : GraphValueUnit.values[normalizedUnitIndex!];
+    final hasMin =
+        node
+            .propertyByDefinitionKey(mathInputNodePropertyKeys.hasMin)
+            ?.value
+            .boolValue ??
+        false;
+    final hasMax =
+        node
+            .propertyByDefinitionKey(mathInputNodePropertyKeys.hasMax)
+            ?.value
+            .boolValue ??
+        false;
+    final minValue = hasMin
+        ? node.propertyByDefinitionKey(mathInputNodePropertyKeys.min)?.value
+        : null;
+    final maxValue = hasMax
+        ? node.propertyByDefinitionKey(mathInputNodePropertyKeys.max)?.value
+        : null;
+    final stepValue = node
+        .propertyByDefinitionKey(mathInputNodePropertyKeys.step)
+        ?.value
+        .floatValue;
+    return _InputParameterMetadata(
+      defaultValue: defaultValue != null && defaultValue.valueType == valueType
+          ? defaultValue.deepCopy()
+          : null,
+      minValue: minValue != null && minValue.valueType == valueType
+          ? minValue.deepCopy()
+          : null,
+      maxValue: maxValue != null && maxValue.valueType == valueType
+          ? maxValue.deepCopy()
+          : null,
+      step: stepValue,
+      valueUnit: valueUnit,
+    );
   }
 
   List<String> _topologicalOrder({
@@ -799,6 +935,7 @@ class MathGraphCompiler {
       case MathNodeOperation.dot:
       case MathNodeOperation.not:
       case MathNodeOperation.compose:
+      case MathNodeOperation.breakout:
       case MathNodeOperation.swizzle:
       case MathNodeOperation.cast:
       case MathNodeOperation.ifElse:
@@ -853,6 +990,7 @@ class MathGraphCompiler {
       case MathNodeOperation.lower:
       case MathNodeOperation.lowerOrEqual:
       case MathNodeOperation.compose:
+      case MathNodeOperation.breakout:
       case MathNodeOperation.swizzle:
       case MathNodeOperation.cast:
       case MathNodeOperation.ifElse:
@@ -943,6 +1081,22 @@ class _ResolvedNodeValue {
   final GraphValueType valueType;
 }
 
+class _InputParameterMetadata {
+  const _InputParameterMetadata({
+    this.defaultValue,
+    this.minValue,
+    this.maxValue,
+    this.step,
+    this.valueUnit = GraphValueUnit.none,
+  });
+
+  final GraphValueData? defaultValue;
+  final GraphValueData? minValue;
+  final GraphValueData? maxValue;
+  final double? step;
+  final GraphValueUnit valueUnit;
+}
+
 class _VariableBinding {
   const _VariableBinding({
     required this.name,
@@ -1001,7 +1155,7 @@ class _CompilerState {
 
   final List<MathFunctionParameter> parameters = <MathFunctionParameter>[];
   final List<MathIrStatement> statements = <MathIrStatement>[];
-  final Map<String, _ResolvedNodeValue> nodeValuesByNodeId =
+  final Map<String, _ResolvedNodeValue> nodeValuesByPropertyId =
       <String, _ResolvedNodeValue>{};
   final Map<String, MathFunctionParameter> inputParameterByLogicalKey =
       <String, MathFunctionParameter>{};
@@ -1052,12 +1206,12 @@ class _CompilerState {
     }
     final link = linkByInputPropertyId[property.id];
     if (link != null) {
-      final upstream = nodeValuesByNodeId[link.fromNodeId];
+      final upstream = nodeValuesByPropertyId[link.fromPropertyId];
       if (upstream == null) {
         error(
           code: 'missing_upstream_value',
           message:
-              'Upstream node `${link.fromNodeId}` did not produce a compiled value before `$key` was read.',
+              'Upstream property `${link.fromPropertyId}` did not produce a compiled value before `$key` was read.',
           nodeId: node.id,
           propertyId: property.id,
         );
@@ -1085,7 +1239,7 @@ class _CompilerState {
   }
 
   void bindNodeValue(
-    String nodeId,
+    String propertyId,
     GraphValueType valueType,
     MathIrExpression expression,
   ) {
@@ -1097,7 +1251,7 @@ class _CompilerState {
         expression: expression,
       ),
     );
-    nodeValuesByNodeId[nodeId] = _ResolvedNodeValue(
+    nodeValuesByPropertyId[propertyId] = _ResolvedNodeValue(
       expression: MathIrReferenceExpression(
         valueType: valueType,
         identifier: tempName,
@@ -1107,11 +1261,11 @@ class _CompilerState {
   }
 
   void storeNodeValue(
-    String nodeId,
+    String propertyId,
     GraphValueType valueType,
     MathIrExpression expression,
   ) {
-    nodeValuesByNodeId[nodeId] = _ResolvedNodeValue(
+    nodeValuesByPropertyId[propertyId] = _ResolvedNodeValue(
       expression: expression,
       valueType: valueType,
     );
@@ -1121,6 +1275,11 @@ class _CompilerState {
     required String identifier,
     required GraphValueType valueType,
     required String nodeId,
+    GraphValueData? defaultValue,
+    GraphValueData? minValue,
+    GraphValueData? maxValue,
+    double? step,
+    GraphValueUnit valueUnit = GraphValueUnit.none,
   }) {
     final logicalKey = 'input:$identifier';
     final existing = inputParameterByLogicalKey[logicalKey];
@@ -1141,6 +1300,11 @@ class _CompilerState {
       name: uniqueIdentifier('in_${_sanitizeIdentifier(identifier)}'),
       valueType: valueType,
       rawIdentifier: identifier,
+      defaultValue: defaultValue,
+      minValue: minValue,
+      maxValue: maxValue,
+      step: step,
+      valueUnit: valueUnit,
     );
     inputParameterByLogicalKey[logicalKey] = parameter;
     parameters.add(parameter);

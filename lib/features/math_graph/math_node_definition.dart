@@ -46,6 +46,7 @@ enum MathNodeOperation {
   lower,
   lowerOrEqual,
   compose,
+  breakout,
   swizzle,
   cast,
   ifElse,

@@ -61,6 +61,35 @@ void main() {
     expect(controller.selectedNodeId, inputNode.id);
   });
 
+  test('exposed material inputs inherit soft range metadata', () {
+    final controller = _buildSingleNodeController(definitionId: 'circle_node');
+    addTearDown(controller.dispose);
+    final node = controller.graph.nodes.single;
+    final radiusPropertyId = node.propertyByDefinitionKey('radius')!.id;
+
+    controller.exposePropertyAsInput(nodeId: node.id, propertyId: radiusPropertyId);
+
+    final inputNode = controller.graph.nodes.firstWhere(
+      (entry) => entry.definitionId == 'input_float_node',
+    );
+    expect(
+      inputNode.propertyByDefinitionKey('hasMin')!.value.boolValue,
+      isTrue,
+    );
+    expect(
+      inputNode.propertyByDefinitionKey('min')!.value.floatValue,
+      0.0,
+    );
+    expect(
+      inputNode.propertyByDefinitionKey('hasMax')!.value.boolValue,
+      isTrue,
+    );
+    expect(
+      inputNode.propertyByDefinitionKey('max')!.value.floatValue,
+      1.0,
+    );
+  });
+
   test('duplicates a node with copied properties and offset position', () {
     final controller = _buildController();
     addTearDown(controller.dispose);

@@ -1,4 +1,5 @@
 import 'package:eyecandy/features/graph/models/graph_models.dart';
+import 'package:eyecandy/features/graph/models/graph_schema.dart';
 import 'package:eyecandy/features/math_graph/math_graph_catalog.dart';
 import 'package:eyecandy/features/math_graph/runtime/math_graph_compiler.dart';
 import 'package:eyecandy/features/math_graph/runtime/math_graph_ir.dart';
@@ -61,6 +62,63 @@ void main() {
     expect(result.compiledFunction!.source, contains('float t0 = 0.5;'));
     expect(result.compiledFunction!.source, contains('float t1 = (in_intensity + t0);'));
     expect(result.compiledFunction!.source, contains('return t1;'));
+  });
+
+  test('compiler carries input metadata into compiled parameters', () {
+    final catalog = MathGraphCatalog(IdFactory());
+    final input = catalog.instantiateNode(
+      definitionId: 'get_float1_node',
+      position: Vector2.zero(),
+    );
+    final output = catalog.instantiateNode(
+      definitionId: 'output_float_node',
+      position: Vector2(200, 0),
+    );
+    final updatedInput = _setStringProperty(input, 'identifier', 'gain').copyWith(
+      properties: input.properties
+          .map((property) {
+            switch (property.definitionKey) {
+              case 'identifier':
+                return property.copyWith(
+                  value: GraphValueData.stringValue('gain'),
+                );
+              case 'defaultValue':
+                return property.copyWith(value: GraphValueData.float(0.25));
+              case 'unit':
+                return property.copyWith(value: GraphValueData.enumChoice(1));
+              case 'hasMin':
+                return property.copyWith(value: GraphValueData.boolean(true));
+              case 'min':
+                return property.copyWith(value: GraphValueData.float(-1.0));
+              case 'hasMax':
+                return property.copyWith(value: GraphValueData.boolean(true));
+              case 'max':
+                return property.copyWith(value: GraphValueData.float(2.0));
+              case 'step':
+                return property.copyWith(value: GraphValueData.float(0.125));
+              default:
+                return property;
+            }
+          })
+          .toList(growable: false),
+    );
+    final graph = GraphDocument(
+      id: 'math-graph-metadata',
+      name: 'Metadata',
+      nodes: [updatedInput, output],
+      links: [_connect(updatedInput, '_output', output, 'value')],
+    );
+
+    final result = _compile(catalog, graph);
+
+    expect(result.hasErrors, isFalse);
+    final parameter = result.compiledFunction!.parameters.single;
+    expect(parameter.rawIdentifier, 'gain');
+    expect(parameter.defaultValue?.floatValue, 0.25);
+    expect(parameter.minValue?.floatValue, -1.0);
+    expect(parameter.maxValue?.floatValue, 2.0);
+    expect(parameter.step, 0.125);
+    expect(parameter.valueUnit, GraphValueUnit.rotation);
   });
 
   test('compiler rejects cycles instead of silently appending nodes', () {
@@ -190,6 +248,45 @@ void main() {
     );
     expect(result.compiledFunction!.source, contains('float var_gain = t0;'));
     expect(result.compiledFunction!.source, contains('return var_gain;'));
+  });
+
+  test('compiler resolves vector breakout outputs independently', () {
+    final catalog = MathGraphCatalog(IdFactory());
+    final input = catalog.instantiateNode(
+      definitionId: 'get_float3_node',
+      position: Vector2.zero(),
+    );
+    final breakNode = catalog.instantiateNode(
+      definitionId: 'break_float3_node',
+      position: Vector2(200, 0),
+    );
+    final output = catalog.instantiateNode(
+      definitionId: 'output_float_node',
+      position: Vector2(400, 0),
+    );
+    final updatedInput = _setStringProperty(input, 'identifier', 'normal');
+    final graph = GraphDocument(
+      id: 'math-graph-breakout',
+      name: 'Breakout',
+      nodes: [updatedInput, breakNode, output],
+      links: [
+        _connect(updatedInput, '_output', breakNode, 'input'),
+        _connect(breakNode, 'z', output, 'value'),
+      ],
+    );
+
+    final result = _compile(
+      catalog,
+      graph,
+      options: const MathGraphCompileOptions(functionName: 'extractZ'),
+    );
+
+    expect(result.hasErrors, isFalse);
+    expect(
+      result.compiledFunction!.source,
+      contains('float extractZ(vec3 in_normal)'),
+    );
+    expect(result.compiledFunction!.source, contains('return in_normal.z;'));
   });
 }
 

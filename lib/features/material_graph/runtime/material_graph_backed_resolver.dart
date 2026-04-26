@@ -198,8 +198,14 @@ class MaterialGraphBackedNodeResolver {
               propertyType: GraphPropertyType.input,
               socket: true,
               valueType: valueType,
-              valueUnit: GraphValueUnit.none,
-              defaultValue: _defaultValueForType(valueType),
+              valueUnit: parameter.valueUnit,
+              defaultValue:
+                  parameter.defaultValue?.valueType == valueType
+                  ? parameter.defaultValue!.unwrap()
+                  : _defaultValueForType(valueType),
+              min: _numericScalarValue(parameter.minValue),
+              max: _numericScalarValue(parameter.maxValue),
+              step: parameter.step,
               socketTransport: GraphSocketTransport.value,
             ),
           );
@@ -365,6 +371,17 @@ class MaterialGraphBackedNodeResolver {
         1.0,
       ],
       _ => throw StateError('Unsupported dynamic default type: $valueType'),
+    };
+  }
+
+  static num? _numericScalarValue(GraphValueData? value) {
+    if (value == null) {
+      return null;
+    }
+    return switch (value.valueType) {
+      GraphValueType.integer => value.integerValue,
+      GraphValueType.float => value.floatValue,
+      _ => null,
     };
   }
 }

@@ -9,6 +9,8 @@ void main() {
     final catalog = MathGraphCatalog(IdFactory());
 
     final floatConstant = catalog.definitionById('float_constant_node');
+    final floatInput = catalog.definitionById('get_float1_node');
+    final breakFloat3 = catalog.definitionById('break_float3_node');
     final sampler = catalog.definitionById('sample_color_node');
     final output = catalog.definitionById('output_float4_node');
     final setFloat = catalog.definitionById('set_float_node');
@@ -19,6 +21,28 @@ void main() {
     ]);
     expect(floatConstant.propertyDefinition('value').defaultValue, 0.0);
     expect(floatConstant.propertyDefinition('_output').valueType, GraphValueType.float);
+
+    expect(floatInput.properties.map((property) => property.key), [
+      'identifier',
+      'defaultValue',
+      'unit',
+      'hasMin',
+      'min',
+      'hasMax',
+      'max',
+      'step',
+      '_output',
+    ]);
+    expect(floatInput.propertyDefinition('defaultValue').defaultValue, 0.0);
+    expect(floatInput.propertyDefinition('step').defaultValue, 0.01);
+
+    expect(breakFloat3.properties.map((property) => property.key), [
+      'input',
+      'x',
+      'y',
+      'z',
+    ]);
+    expect(breakFloat3.propertyDefinition('x').valueType, GraphValueType.float);
 
     expect(sampler.properties.map((property) => property.key), [
       'sourceIndex',

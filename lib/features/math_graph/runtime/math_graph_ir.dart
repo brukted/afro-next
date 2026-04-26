@@ -31,6 +31,11 @@ class MathFunctionParameter {
     this.valueType,
     this.sourceIndex,
     this.rawIdentifier,
+    this.defaultValue,
+    this.minValue,
+    this.maxValue,
+    this.step,
+    this.valueUnit = GraphValueUnit.none,
   });
 
   final MathFunctionParameterKind kind;
@@ -38,6 +43,11 @@ class MathFunctionParameter {
   final GraphValueType? valueType;
   final int? sourceIndex;
   final String? rawIdentifier;
+  final GraphValueData? defaultValue;
+  final GraphValueData? minValue;
+  final GraphValueData? maxValue;
+  final double? step;
+  final GraphValueUnit valueUnit;
 }
 
 abstract class MathIrExpression {

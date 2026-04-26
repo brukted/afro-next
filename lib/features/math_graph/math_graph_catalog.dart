@@ -5,6 +5,185 @@ import '../graph/models/graph_models.dart';
 import '../graph/models/graph_schema.dart';
 import 'math_node_definition.dart';
 
+class MathInputNodePropertyKeys {
+  const MathInputNodePropertyKeys({
+    this.identifier = 'identifier',
+    this.defaultValue = 'defaultValue',
+    this.unit = 'unit',
+    this.hasMin = 'hasMin',
+    this.min = 'min',
+    this.hasMax = 'hasMax',
+    this.max = 'max',
+    this.step = 'step',
+    this.output = '_output',
+  });
+
+  final String identifier;
+  final String defaultValue;
+  final String unit;
+  final String hasMin;
+  final String min;
+  final String hasMax;
+  final String max;
+  final String step;
+  final String output;
+}
+
+const mathInputNodePropertyKeys = MathInputNodePropertyKeys();
+
+class MathInputNodeDescriptor {
+  const MathInputNodeDescriptor({
+    required this.definitionId,
+    required this.label,
+    required this.description,
+    required this.valueType,
+    required this.defaultIdentifier,
+  });
+
+  final String definitionId;
+  final String label;
+  final String description;
+  final GraphValueType valueType;
+  final String defaultIdentifier;
+}
+
+class MathVectorBreakoutNodeDescriptor {
+  const MathVectorBreakoutNodeDescriptor({
+    required this.definitionId,
+    required this.label,
+    required this.description,
+    required this.inputType,
+    required this.outputType,
+    required this.componentKeys,
+  });
+
+  final String definitionId;
+  final String label;
+  final String description;
+  final GraphValueType inputType;
+  final GraphValueType outputType;
+  final List<String> componentKeys;
+}
+
+const List<MathInputNodeDescriptor> mathInputNodeDescriptors =
+    <MathInputNodeDescriptor>[
+      MathInputNodeDescriptor(
+        definitionId: 'get_boolean_node',
+        label: 'Get Boolean',
+        description: 'Reads a boolean function input.',
+        valueType: GraphValueType.boolean,
+        defaultIdentifier: 'inputBool',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_integer1_node',
+        label: 'Get Integer1',
+        description: 'Reads an integer function input.',
+        valueType: GraphValueType.integer,
+        defaultIdentifier: 'inputInt',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_integer2_node',
+        label: 'Get Integer2',
+        description: 'Reads an ivec2 function input.',
+        valueType: GraphValueType.integer2,
+        defaultIdentifier: 'inputInt2',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_integer3_node',
+        label: 'Get Integer3',
+        description: 'Reads an ivec3 function input.',
+        valueType: GraphValueType.integer3,
+        defaultIdentifier: 'inputInt3',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_integer4_node',
+        label: 'Get Integer4',
+        description: 'Reads an ivec4 function input.',
+        valueType: GraphValueType.integer4,
+        defaultIdentifier: 'inputInt4',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_float1_node',
+        label: 'Get Float1',
+        description: 'Reads a float function input.',
+        valueType: GraphValueType.float,
+        defaultIdentifier: 'inputFloat',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_float2_node',
+        label: 'Get Float2',
+        description: 'Reads a vec2 function input.',
+        valueType: GraphValueType.float2,
+        defaultIdentifier: 'inputFloat2',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_float3_node',
+        label: 'Get Float3',
+        description: 'Reads a vec3 function input.',
+        valueType: GraphValueType.float3,
+        defaultIdentifier: 'inputFloat3',
+      ),
+      MathInputNodeDescriptor(
+        definitionId: 'get_float4_node',
+        label: 'Get Float4',
+        description: 'Reads a vec4 function input.',
+        valueType: GraphValueType.float4,
+        defaultIdentifier: 'inputFloat4',
+      ),
+    ];
+
+const List<MathVectorBreakoutNodeDescriptor> mathVectorBreakoutNodeDescriptors =
+    <MathVectorBreakoutNodeDescriptor>[
+      MathVectorBreakoutNodeDescriptor(
+        definitionId: 'break_integer2_node',
+        label: 'Break Integer2',
+        description: 'Breaks an ivec2 into integer components.',
+        inputType: GraphValueType.integer2,
+        outputType: GraphValueType.integer,
+        componentKeys: <String>['x', 'y'],
+      ),
+      MathVectorBreakoutNodeDescriptor(
+        definitionId: 'break_integer3_node',
+        label: 'Break Integer3',
+        description: 'Breaks an ivec3 into integer components.',
+        inputType: GraphValueType.integer3,
+        outputType: GraphValueType.integer,
+        componentKeys: <String>['x', 'y', 'z'],
+      ),
+      MathVectorBreakoutNodeDescriptor(
+        definitionId: 'break_integer4_node',
+        label: 'Break Integer4',
+        description: 'Breaks an ivec4 into integer components.',
+        inputType: GraphValueType.integer4,
+        outputType: GraphValueType.integer,
+        componentKeys: <String>['x', 'y', 'z', 'w'],
+      ),
+      MathVectorBreakoutNodeDescriptor(
+        definitionId: 'break_float2_node',
+        label: 'Break Float2',
+        description: 'Breaks a vec2 into float components.',
+        inputType: GraphValueType.float2,
+        outputType: GraphValueType.float,
+        componentKeys: <String>['x', 'y'],
+      ),
+      MathVectorBreakoutNodeDescriptor(
+        definitionId: 'break_float3_node',
+        label: 'Break Float3',
+        description: 'Breaks a vec3 into float components.',
+        inputType: GraphValueType.float3,
+        outputType: GraphValueType.float,
+        componentKeys: <String>['x', 'y', 'z'],
+      ),
+      MathVectorBreakoutNodeDescriptor(
+        definitionId: 'break_float4_node',
+        label: 'Break Float4',
+        description: 'Breaks a vec4 into float components.',
+        inputType: GraphValueType.float4,
+        outputType: GraphValueType.float,
+        componentKeys: <String>['x', 'y', 'z', 'w'],
+      ),
+    ];
+
 class MathGraphCatalog {
   MathGraphCatalog(this._idFactory);
 
@@ -15,6 +194,7 @@ class MathGraphCatalog {
     ..._inputParameterNodes(),
     _builtinPosNode(),
     ..._vectorComposeNodes(),
+    ..._vectorBreakoutNodes(),
     ..._vectorSwizzleNodes(),
     ..._castNodes(),
     ..._binaryArithmeticNodes(),
@@ -182,71 +362,13 @@ class MathGraphCatalog {
   }
 
   List<MathNodeDefinition> _inputParameterNodes() {
-    return <MathNodeDefinition>[
-      _inputNode(
-        id: 'get_boolean_node',
-        label: 'Get Boolean',
-        description: 'Reads a boolean function input.',
-        valueType: GraphValueType.boolean,
-        defaultIdentifier: 'inputBool',
-      ),
-      _inputNode(
-        id: 'get_integer1_node',
-        label: 'Get Integer1',
-        description: 'Reads an integer function input.',
-        valueType: GraphValueType.integer,
-        defaultIdentifier: 'inputInt',
-      ),
-      _inputNode(
-        id: 'get_integer2_node',
-        label: 'Get Integer2',
-        description: 'Reads an ivec2 function input.',
-        valueType: GraphValueType.integer2,
-        defaultIdentifier: 'inputInt2',
-      ),
-      _inputNode(
-        id: 'get_integer3_node',
-        label: 'Get Integer3',
-        description: 'Reads an ivec3 function input.',
-        valueType: GraphValueType.integer3,
-        defaultIdentifier: 'inputInt3',
-      ),
-      _inputNode(
-        id: 'get_integer4_node',
-        label: 'Get Integer4',
-        description: 'Reads an ivec4 function input.',
-        valueType: GraphValueType.integer4,
-        defaultIdentifier: 'inputInt4',
-      ),
-      _inputNode(
-        id: 'get_float1_node',
-        label: 'Get Float1',
-        description: 'Reads a float function input.',
-        valueType: GraphValueType.float,
-        defaultIdentifier: 'inputFloat',
-      ),
-      _inputNode(
-        id: 'get_float2_node',
-        label: 'Get Float2',
-        description: 'Reads a vec2 function input.',
-        valueType: GraphValueType.float2,
-        defaultIdentifier: 'inputFloat2',
-      ),
-      _inputNode(
-        id: 'get_float3_node',
-        label: 'Get Float3',
-        description: 'Reads a vec3 function input.',
-        valueType: GraphValueType.float3,
-        defaultIdentifier: 'inputFloat3',
-      ),
-      _inputNode(
-        id: 'get_float4_node',
-        label: 'Get Float4',
-        description: 'Reads a vec4 function input.',
-        valueType: GraphValueType.float4,
-        defaultIdentifier: 'inputFloat4',
-      ),
-    ];
+    return mathInputNodeDescriptors
+        .map(
+          (descriptor) => _inputNode(
+            descriptor: descriptor,
+          ),
+        )
+        .toList(growable: false);
   }
 
   MathNodeDefinition _builtinPosNode() {
@@ -303,6 +425,16 @@ class MathGraphCatalog {
         ],
       ),
     ];
+  }
+
+  List<MathNodeDefinition> _vectorBreakoutNodes() {
+    return mathVectorBreakoutNodeDescriptors
+        .map(
+          (descriptor) => _breakoutNode(
+            descriptor: descriptor,
+          ),
+        )
+        .toList(growable: false);
   }
 
   List<MathNodeDefinition> _vectorSwizzleNodes() {
@@ -1119,29 +1251,145 @@ class MathGraphCatalog {
   }
 
   MathNodeDefinition _inputNode({
-    required String id,
-    required String label,
-    required String description,
-    required GraphValueType valueType,
-    required String defaultIdentifier,
+    required MathInputNodeDescriptor descriptor,
   }) {
+    final unitOptions = _unitOptionsForValueType(descriptor.valueType);
+    final supportsRange = _supportsRangeMetadata(descriptor.valueType);
+    final supportsStep = _supportsStepMetadata(descriptor.valueType);
     return MathNodeDefinition(
       schema: GraphNodeSchema(
-        id: id,
-        label: label,
-        description: description,
+        id: descriptor.definitionId,
+        label: descriptor.label,
+        description: descriptor.description,
         properties: [
-          _descriptorIdentifier(defaultValue: defaultIdentifier),
+          _descriptorIdentifier(defaultValue: descriptor.defaultIdentifier),
+          GraphPropertyDefinition(
+            key: mathInputNodePropertyKeys.defaultValue,
+            label: 'Default',
+            description:
+                'Default value exposed for this graph input when no external value is provided.',
+            propertyType: GraphPropertyType.input,
+            socket: false,
+            valueType: descriptor.valueType,
+            valueUnit: GraphValueUnit.none,
+            defaultValue: _defaultValueForType(descriptor.valueType),
+            isEditable: true,
+          ),
+          if (unitOptions.length > 1)
+            GraphPropertyDefinition(
+              key: mathInputNodePropertyKeys.unit,
+              label: 'Unit',
+              description: 'Presentation unit for this graph input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.enumChoice,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: unitOptions.first.value,
+              isEditable: true,
+              enumOptions: unitOptions,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: mathInputNodePropertyKeys.hasMin,
+              label: 'Has Min',
+              description: 'Enable a soft minimum hint for this input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.boolean,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: false,
+              isEditable: true,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: mathInputNodePropertyKeys.min,
+              label: 'Min',
+              description: 'Soft minimum value for this input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: descriptor.valueType,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: _defaultValueForType(descriptor.valueType),
+              isEditable: true,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: mathInputNodePropertyKeys.hasMax,
+              label: 'Has Max',
+              description: 'Enable a soft maximum hint for this input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.boolean,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: false,
+              isEditable: true,
+            ),
+          if (supportsRange)
+            GraphPropertyDefinition(
+              key: mathInputNodePropertyKeys.max,
+              label: 'Max',
+              description: 'Soft maximum value for this input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: descriptor.valueType,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: _defaultMaxValueForType(descriptor.valueType),
+              isEditable: true,
+            ),
+          if (supportsStep)
+            GraphPropertyDefinition(
+              key: mathInputNodePropertyKeys.step,
+              label: 'Step',
+              description: 'Suggested editor increment for this input.',
+              propertyType: GraphPropertyType.input,
+              socket: false,
+              valueType: GraphValueType.float,
+              valueUnit: GraphValueUnit.none,
+              defaultValue: _defaultStepForType(descriptor.valueType),
+              isEditable: true,
+              min: 0.0001,
+              max: 1024,
+              step: 0.01,
+            ),
           _outputSocket(
-            key: '_output',
+            key: mathInputNodePropertyKeys.output,
             label: 'Output',
-            valueType: valueType,
+            valueType: descriptor.valueType,
           ),
         ],
       ),
       compileMetadata: const MathNodeCompileMetadata(
         kind: MathNodeKind.inputParameter,
         externalIdentifierPropertyKey: 'identifier',
+      ),
+    );
+  }
+
+  MathNodeDefinition _breakoutNode({
+    required MathVectorBreakoutNodeDescriptor descriptor,
+  }) {
+    return MathNodeDefinition(
+      schema: GraphNodeSchema(
+        id: descriptor.definitionId,
+        label: descriptor.label,
+        description: descriptor.description,
+        properties: [
+          _inputSocket(
+            key: 'input',
+            label: 'Input',
+            valueType: descriptor.inputType,
+          ),
+          for (final componentKey in descriptor.componentKeys)
+            _outputSocket(
+              key: componentKey,
+              label: componentKey.toUpperCase(),
+              valueType: descriptor.outputType,
+            ),
+        ],
+      ),
+      compileMetadata: const MathNodeCompileMetadata(
+        kind: MathNodeKind.operation,
+        operation: MathNodeOperation.breakout,
       ),
     );
   }
@@ -1348,7 +1596,7 @@ class MathGraphCatalog {
     required String defaultValue,
   }) {
     return GraphPropertyDefinition(
-      key: 'identifier',
+      key: mathInputNodePropertyKeys.identifier,
       label: 'Identifier',
       description: 'Public identifier used by the generated function.',
       propertyType: GraphPropertyType.descriptor,
@@ -1358,6 +1606,147 @@ class MathGraphCatalog {
       defaultValue: defaultValue,
       isEditable: true,
     );
+  }
+
+  static List<EnumChoiceOption> _unitOptionsForValueType(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'power2',
+          label: 'Power of Two',
+          value: _unitEnumValue(GraphValueUnit.power2),
+        ),
+      ],
+      GraphValueType.integer2 => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'position',
+          label: 'Position',
+          value: _unitEnumValue(GraphValueUnit.position),
+        ),
+        EnumChoiceOption(
+          id: 'power2',
+          label: 'Power of Two',
+          value: _unitEnumValue(GraphValueUnit.power2),
+        ),
+      ],
+      GraphValueType.integer3 => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'position',
+          label: 'Position',
+          value: _unitEnumValue(GraphValueUnit.position),
+        ),
+      ],
+      GraphValueType.float => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'rotation',
+          label: 'Rotation',
+          value: _unitEnumValue(GraphValueUnit.rotation),
+        ),
+      ],
+      GraphValueType.float2 => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'position',
+          label: 'Position',
+          value: _unitEnumValue(GraphValueUnit.position),
+        ),
+        EnumChoiceOption(
+          id: 'power2',
+          label: 'Power of Two',
+          value: _unitEnumValue(GraphValueUnit.power2),
+        ),
+      ],
+      GraphValueType.float3 => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'position',
+          label: 'Position',
+          value: _unitEnumValue(GraphValueUnit.position),
+        ),
+        EnumChoiceOption(
+          id: 'color',
+          label: 'Color',
+          value: _unitEnumValue(GraphValueUnit.color),
+        ),
+      ],
+      GraphValueType.float4 => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+        EnumChoiceOption(
+          id: 'color',
+          label: 'Color',
+          value: _unitEnumValue(GraphValueUnit.color),
+        ),
+      ],
+      _ => <EnumChoiceOption>[
+        EnumChoiceOption(
+          id: 'none',
+          label: 'None',
+          value: _unitEnumValue(GraphValueUnit.none),
+        ),
+      ],
+    };
+  }
+
+  static int _unitEnumValue(GraphValueUnit unit) => unit.index;
+
+  static bool _supportsRangeMetadata(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer ||
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 ||
+      GraphValueType.float ||
+      GraphValueType.float2 ||
+      GraphValueType.float3 ||
+      GraphValueType.float4 => true,
+      _ => false,
+    };
+  }
+
+  static bool _supportsStepMetadata(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer ||
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 ||
+      GraphValueType.float ||
+      GraphValueType.float2 ||
+      GraphValueType.float3 ||
+      GraphValueType.float4 => true,
+      _ => false,
+    };
   }
 
   static GraphPropertyDefinition _descriptorSourceIndex() {
@@ -1420,6 +1809,39 @@ class MathGraphCatalog {
       case GraphValueType.textBlock:
         return GraphTextData.defaults();
     }
+  }
+
+  static Object _defaultMaxValueForType(GraphValueType valueType) {
+    switch (valueType) {
+      case GraphValueType.integer:
+        return 1;
+      case GraphValueType.integer2:
+        return const <int>[1, 1];
+      case GraphValueType.integer3:
+        return const <int>[1, 1, 1];
+      case GraphValueType.integer4:
+        return const <int>[1, 1, 1, 1];
+      case GraphValueType.float:
+        return 1.0;
+      case GraphValueType.float2:
+        return vmath.Vector2.all(1.0);
+      case GraphValueType.float3:
+        return vmath.Vector3.all(1.0);
+      case GraphValueType.float4:
+        return vmath.Vector4.all(1.0);
+      default:
+        return _defaultValueForType(valueType);
+    }
+  }
+
+  static double _defaultStepForType(GraphValueType valueType) {
+    return switch (valueType) {
+      GraphValueType.integer ||
+      GraphValueType.integer2 ||
+      GraphValueType.integer3 ||
+      GraphValueType.integer4 => 1.0,
+      _ => 0.01,
+    };
   }
 
   static String _typeSuffix(GraphValueType valueType) {
